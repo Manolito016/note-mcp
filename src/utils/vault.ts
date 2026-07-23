@@ -1,19 +1,53 @@
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
+import { config as loadDotenv } from "dotenv";
 
 let vaultRoot: string;
 
 /**
- * Initialize the vault root from the CLI argument.
+ * Resolve the vault path from available configuration sources.
+ *
+ * Priority order:
+ * 1. CLI argument (`node dist/index.js /path/to/vault`)
+ * 2. Environment variable `NOTES_VAULT_PATH`
+ * 3. `.env` file in the project root (`NOTES_VAULT_PATH=...`)
+ */
+function resolveVaultRoot(): string {
+    // 1. CLI argument
+    const cliArg = process.argv[2];
+    if (cliArg) {
+        return resolve(cliArg);
+    }
+
+    // 2. Environment variable (already set in the system)
+    const envVar = process.env.NOTES_VAULT_PATH;
+    if (envVar) {
+        return resolve(envVar);
+    }
+
+    // 3. .env file in the project root
+    loadDotenv();
+    const dotenvPath = process.env.NOTES_VAULT_PATH;
+    if (dotenvPath) {
+        return resolve(dotenvPath);
+    }
+
+    console.error(
+        "Error: No vault path configured.\n\n" +
+        "Set your vault path using one of these methods:\n" +
+        "  1. CLI argument:   node dist/index.js /path/to/vault\n" +
+        "  2. Environment:    set NOTES_VAULT_PATH=/path/to/vault\n" +
+        "  3. .env file:      add NOTES_VAULT_PATH=/path/to/vault to a .env file\n",
+    );
+    process.exit(1);
+}
+
+/**
+ * Initialize the vault root from available configuration sources.
  */
 export function initVault(): string {
-    const arg = process.argv[2];
-    if (!arg) {
-        console.error("Usage: notes-mcp <vault-path>");
-        process.exit(1);
-    }
-    vaultRoot = resolve(arg);
+    vaultRoot = resolveVaultRoot();
     return vaultRoot;
 }
 

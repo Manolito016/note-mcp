@@ -18,12 +18,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for man
 
 All paths are resolved relative to the configured vault root. Path traversal attacks are blocked — any attempt to access files outside the vault will be rejected.
 
-## Requirements
-
-- Node.js 18+
-- A directory to use as the vault
-
-## Installation
+## Setup
 
 ```bash
 git clone https://github.com/Manolito016/note-mcp.git
@@ -32,60 +27,9 @@ npm install
 npm run build
 ```
 
-## Configuration
+## Add to Your MCP Client
 
-The vault path can be configured in three ways, evaluated in this priority order:
-
-| Priority | Method | Example |
-|----------|--------|---------|
-| 1 (highest) | CLI argument | `node dist/index.js D:/vault` |
-| 2 | Environment variable | `NOTES_VAULT_PATH=D:/vault` |
-| 3 (lowest) | `.env` file | `NOTES_VAULT_PATH=D:/vault` in project root |
-
-### Option 1: CLI Argument
-
-Pass the vault path directly when starting the server:
-
-```bash
-node dist/index.js D:/vault
-```
-
-### Option 2: Environment Variable
-
-Set `NOTES_VAULT_PATH` in your system environment:
-
-```powershell
-# Windows (PowerShell)
-$env:NOTES_VAULT_PATH = "D:\vault"
-node dist/index.js
-```
-
-```bash
-# Linux / macOS
-export NOTES_VAULT_PATH=/path/to/vault
-node dist/index.js
-```
-
-### Option 3: `.env` File
-
-Copy `.env.example` to `.env` and set your vault path:
-
-```bash
-cp .env.example .env
-```
-
-```env
-# .env
-NOTES_VAULT_PATH=D:/vault
-```
-
-This is the most convenient option — set it once and forget about it.
-
-## Usage
-
-The server is started automatically by your MCP client. Add it to your MCP client config:
-
-**Option A — pass vault path via CLI argument:**
+Add the server to your MCP client configuration and point it to your vault:
 
 ```json
 {
@@ -98,7 +42,9 @@ The server is started automatically by your MCP client. Add it to your MCP clien
 }
 ```
 
-**Option B — use `.env` file (no path in args needed):**
+Replace `D:/vault` with the path to your notes folder. The AI agent will automatically start the server and use the tools.
+
+Alternatively, use a `.env` file so you don't need the path in args (see [Configuration](#configuration)):
 
 ```json
 {
@@ -111,14 +57,17 @@ The server is started automatically by your MCP client. Add it to your MCP clien
 }
 ```
 
-With Option B, the server reads the vault path from the `.env` file automatically — just make sure `NOTES_VAULT_PATH` is set there.
+## Configuration
 
-### Manual Start (for debugging)
+The vault path is resolved from these sources (in priority order):
 
-```bash
-npm start              # uses .env file or environment variable
-npm start -- D:/vault  # CLI argument overrides other methods
-```
+| Priority | Method | How |
+|----------|--------|-----|
+| 1 (highest) | CLI argument | `"args": ["...", "D:/vault"]` in MCP config |
+| 2 | Environment variable | Set `NOTES_VAULT_PATH` in your system env |
+| 3 (lowest) | `.env` file | Add `NOTES_VAULT_PATH=D:/vault` to the project `.env` |
+
+The `.env` approach is the most convenient — set it once and it works for any MCP client config without repeating the path.
 
 ## Tools Reference
 

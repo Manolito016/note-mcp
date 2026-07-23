@@ -83,18 +83,9 @@ This is the most convenient option — set it once and forget about it.
 
 ## Usage
 
-The server communicates over **stdio**. Once configured, start it with:
+The server is started automatically by your MCP client. Add it to your MCP client config:
 
-```bash
-npm start          # uses .env file or environment variable
-npm start -- D:/vault   # CLI argument overrides other methods
-```
-
-### MCP Client Configuration
-
-Add the server to your MCP client config (e.g. Claude Desktop, Qoder, etc.):
-
-**With CLI argument (explicit vault path):**
+**Option A — pass vault path via CLI argument:**
 
 ```json
 {
@@ -107,7 +98,7 @@ Add the server to your MCP client config (e.g. Claude Desktop, Qoder, etc.):
 }
 ```
 
-**With environment variable (vault path in `.env` file):**
+**Option B — use `.env` file (no path in args needed):**
 
 ```json
 {
@@ -120,7 +111,14 @@ Add the server to your MCP client config (e.g. Claude Desktop, Qoder, etc.):
 }
 ```
 
-The server will read the vault path from the `.env` file automatically.
+With Option B, the server reads the vault path from the `.env` file automatically — just make sure `NOTES_VAULT_PATH` is set there.
+
+### Manual Start (for debugging)
+
+```bash
+npm start              # uses .env file or environment variable
+npm start -- D:/vault  # CLI argument overrides other methods
+```
 
 ## Tools Reference
 

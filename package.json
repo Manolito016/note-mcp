@@ -2,11 +2,39 @@
   "name": "notes-mcp",
   "version": "1.0.0",
   "description": "MCP server for managing a markdown notes vault",
+  "author": "Manolito016",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "notes-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "notes",
+    "markdown",
+    "vault",
+    "ai",
+    "assistant"
+  ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -15,6 +43,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.8.0"
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/utils": "^8.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.10"
   }
 }

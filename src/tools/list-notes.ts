@@ -7,9 +7,11 @@ export const description = "List notes and folders in a directory. Supports recu
 export const inputSchema = z.object({
     path: z.string().default(".").describe("Directory path relative to the vault root (default: root)"),
     recursive: z.boolean().default(false).describe("If true, list all files recursively"),
+    limit: z.number().optional().describe("Maximum number of entries to return"),
+    offset: z.number().default(0).describe("Number of entries to skip (for pagination)"),
 });
 
-export async function handler({ path, recursive }: { path: string; recursive: boolean }) {
+export async function handler({ path, recursive, limit, offset }: { path: string; recursive: boolean; limit?: number; offset: number }) {
     const dirPath = resolveVaultPath(path);
 
     if (!(await pathExists(dirPath))) {
@@ -39,5 +41,12 @@ export async function handler({ path, recursive }: { path: string; recursive: bo
         return { content: [{ type: "text" as const, text: "Directory is empty." }] };
     }
 
-    return { content: [{ type: "text" as const, text: entries.join("\n") }] };
+    const total = entries.length;
+    const paginatedEntries = limit ? entries.slice(offset, offset + limit) : entries.slice(offset);
+    
+    // Only show pagination info when actually paginating
+    const isPaginated = limit !== undefined || offset > 0;
+    const prefix = isPaginated ? `Showing ${paginatedEntries.length} of ${total} entries\n\n` : "";
+
+    return { content: [{ type: "text" as const, text: `${prefix}${paginatedEntries.join("\n")}` }] };
 }

@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { resolveVaultPath, pathExists } from "../utils/vault.js";
+import { resolveVaultPath } from "../utils/vault.js";
 import * as z from "zod";
 
 export const name = "write_note";

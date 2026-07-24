@@ -5,12 +5,15 @@ import * as z from "zod";
 export const name = "search_notes";
 export const description = "Search note contents by text pattern. Returns matching file paths and the matching line.";
 export const inputSchema = z.object({
-    query: z.string().describe("Text to search for (case-insensitive)"),
+    query: z.string().describe("Text or regex pattern to search for"),
     path: z.string().default(".").describe("Directory to search in, relative to the vault root (default: root)"),
     fileExtension: z.string().default(".md").describe("File extension to search (default: .md)"),
+    useRegex: z.boolean().default(false).describe("If true, treat query as a regex pattern (default: false)"),
+    limit: z.number().optional().describe("Maximum number of results to return"),
+    offset: z.number().default(0).describe("Number of results to skip (for pagination)"),
 });
 
-export async function handler({ query, path, fileExtension }: { query: string; path: string; fileExtension: string }) {
+export async function handler({ query, path, fileExtension, useRegex, limit, offset }: { query: string; path: string; fileExtension: string; useRegex: boolean; limit?: number; offset: number }) {
     const dirPath = resolveVaultPath(path);
 
     if (!(await pathExists(dirPath))) {
@@ -18,7 +21,13 @@ export async function handler({ query, path, fileExtension }: { query: string; p
     }
 
     const results: string[] = [];
-    const lowerQuery = query.toLowerCase();
+    let searchPattern: RegExp;
+
+    try {
+        searchPattern = useRegex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    } catch (err) {
+        return { content: [{ type: "text" as const, text: `Error: Invalid regex pattern: "${query}".` }], isError: true };
+    }
 
     async function searchDir(dir: string) {
         const items = await readdir(dir, { withFileTypes: true });
@@ -31,7 +40,7 @@ export async function handler({ query, path, fileExtension }: { query: string; p
                     const content = await readFile(fullPath, "utf-8");
                     const lines = content.split("\n");
                     for (let i = 0; i < lines.length; i++) {
-                        if (lines[i].toLowerCase().includes(lowerQuery)) {
+                        if (searchPattern.test(lines[i])) {
                             const relPath = fullPath.startsWith(dirPath)
                                 ? fullPath.slice(dirPath.length + 1)
                                 : fullPath;
@@ -51,5 +60,12 @@ export async function handler({ query, path, fileExtension }: { query: string; p
         return { content: [{ type: "text" as const, text: `No matches found for "${query}".` }] };
     }
 
-    return { content: [{ type: "text" as const, text: `Found ${results.length} match(es):\n${results.join("\n")}` }] };
+    const total = results.length;
+    const paginatedResults = limit ? results.slice(offset, offset + limit) : results.slice(offset);
+    
+    // Only show pagination info when actually paginating
+    const isPaginated = limit !== undefined || offset > 0;
+    const prefix = isPaginated ? `Showing ${paginatedResults.length} of ${total} match(es):\n` : `Found ${total} match(es):\n`;
+
+    return { content: [{ type: "text" as const, text: `${prefix}${paginatedResults.join("\n")}` }] };
 }

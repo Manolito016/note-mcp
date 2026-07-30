@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { initVault, getVaultRoot } from "./utils/vault.js";
+import { initVault } from "./utils/vault.js";
 import { logger } from "./utils/logger.js";
+import type * as z from "zod";
 
 import * as readNote from "./tools/read-note.js";
 import * as writeNote from "./tools/write-note.js";
@@ -26,7 +27,42 @@ import * as createTemplate from "./tools/create-template.js";
 import * as readFrontmatter from "./tools/read-frontmatter.js";
 import * as writeFrontmatter from "./tools/write-frontmatter.js";
 import * as updateFrontmatter from "./tools/update-frontmatter.js";
+import * as extractLinks from "./tools/extract-links.js";
+import * as findBacklinks from "./tools/find-backlinks.js";
+import * as getGraph from "./tools/get-graph.js";
 
+// --- Crash protection (registered before anything else) ---
+process.on("uncaughtException", (err) => {
+    logger.error("Uncaught exception", { error: err.message, stack: err.stack });
+});
+
+process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled rejection", { reason: reason instanceof Error ? reason.message : String(reason) });
+});
+
+// --- Safe handler wrapper ---
+// Prevents any tool handler from crashing the server process.
+// Catches unexpected errors and returns them as MCP error responses.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyHandler = (...args: any[]) => any;
+
+function safeHandler<H extends AnyHandler>(name: string, handler: H): H {
+    const wrapped = async (...args: Parameters<H>) => {
+        try {
+            return await handler(...args);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error(`Tool "${name}" failed`, { error: message });
+            return {
+                content: [{ type: "text" as const, text: `Error in ${name}: ${message}` }],
+                isError: true,
+            };
+        }
+    };
+    return wrapped as H;
+}
+
+// --- Vault initialization ---
 const vaultPath = initVault();
 
 const server = new McpServer({
@@ -34,156 +70,64 @@ const server = new McpServer({
     version: "1.0.0",
 });
 
-// Register all tools
-server.registerTool(
-    readNote.name,
-    { description: readNote.description, inputSchema: readNote.inputSchema },
-    readNote.handler,
-);
+// --- Safe tool registration helper ---
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function registerTool(name: string, description: string, inputSchema: z.ZodObject<any>, handler: AnyHandler) {
+    server.registerTool(name, { description, inputSchema }, safeHandler(name, handler));
+}
 
-server.registerTool(
-    writeNote.name,
-    { description: writeNote.description, inputSchema: writeNote.inputSchema },
-    writeNote.handler,
-);
+// --- Register all 25 tools ---
+registerTool(readNote.name, readNote.description, readNote.inputSchema, readNote.handler);
+registerTool(writeNote.name, writeNote.description, writeNote.inputSchema, writeNote.handler);
+registerTool(createNote.name, createNote.description, createNote.inputSchema, createNote.handler);
+registerTool(deleteNote.name, deleteNote.description, deleteNote.inputSchema, deleteNote.handler);
+registerTool(moveNote.name, moveNote.description, moveNote.inputSchema, moveNote.handler);
+registerTool(listNotes.name, listNotes.description, listNotes.inputSchema, listNotes.handler);
+registerTool(searchNotes.name, searchNotes.description, searchNotes.inputSchema, searchNotes.handler);
+registerTool(noteInfo.name, noteInfo.description, noteInfo.inputSchema, noteInfo.handler);
+registerTool(createFolder.name, createFolder.description, createFolder.inputSchema, createFolder.handler);
+registerTool(appendNote.name, appendNote.description, appendNote.inputSchema, appendNote.handler);
+registerTool(deleteFolder.name, deleteFolder.description, deleteFolder.inputSchema, deleteFolder.handler);
+registerTool(copyNote.name, copyNote.description, copyNote.inputSchema, copyNote.handler);
+registerTool(vaultStatus.name, vaultStatus.description, vaultStatus.inputSchema, vaultStatus.handler);
+registerTool(batchDelete.name, batchDelete.description, batchDelete.inputSchema, batchDelete.handler);
+registerTool(batchMove.name, batchMove.description, batchMove.inputSchema, batchMove.handler);
+registerTool(renameFolder.name, renameFolder.description, renameFolder.inputSchema, renameFolder.handler);
+registerTool(extractTags.name, extractTags.description, extractTags.inputSchema, extractTags.handler);
+registerTool(searchByName.name, searchByName.description, searchByName.inputSchema, searchByName.handler);
+registerTool(createTemplate.name, createTemplate.description, createTemplate.inputSchema, createTemplate.handler);
+registerTool(readFrontmatter.name, readFrontmatter.description, readFrontmatter.inputSchema, readFrontmatter.handler);
+registerTool(writeFrontmatter.name, writeFrontmatter.description, writeFrontmatter.inputSchema, writeFrontmatter.handler);
+registerTool(updateFrontmatter.name, updateFrontmatter.description, updateFrontmatter.inputSchema, updateFrontmatter.handler);
+registerTool(extractLinks.name, extractLinks.description, extractLinks.inputSchema, extractLinks.handler);
+registerTool(findBacklinks.name, findBacklinks.description, findBacklinks.inputSchema, findBacklinks.handler);
+registerTool(getGraph.name, getGraph.description, getGraph.inputSchema, getGraph.handler);
 
-server.registerTool(
-    createNote.name,
-    { description: createNote.description, inputSchema: createNote.inputSchema },
-    createNote.handler,
-);
-
-server.registerTool(
-    deleteNote.name,
-    { description: deleteNote.description, inputSchema: deleteNote.inputSchema },
-    deleteNote.handler,
-);
-
-server.registerTool(
-    moveNote.name,
-    { description: moveNote.description, inputSchema: moveNote.inputSchema },
-    moveNote.handler,
-);
-
-server.registerTool(
-    listNotes.name,
-    { description: listNotes.description, inputSchema: listNotes.inputSchema },
-    listNotes.handler,
-);
-
-server.registerTool(
-    searchNotes.name,
-    { description: searchNotes.description, inputSchema: searchNotes.inputSchema },
-    searchNotes.handler,
-);
-
-server.registerTool(
-    noteInfo.name,
-    { description: noteInfo.description, inputSchema: noteInfo.inputSchema },
-    noteInfo.handler,
-);
-
-server.registerTool(
-    createFolder.name,
-    { description: createFolder.description, inputSchema: createFolder.inputSchema },
-    createFolder.handler,
-);
-
-server.registerTool(
-    appendNote.name,
-    { description: appendNote.description, inputSchema: appendNote.inputSchema },
-    appendNote.handler,
-);
-
-server.registerTool(
-    deleteFolder.name,
-    { description: deleteFolder.description, inputSchema: deleteFolder.inputSchema },
-    deleteFolder.handler,
-);
-
-server.registerTool(
-    copyNote.name,
-    { description: copyNote.description, inputSchema: copyNote.inputSchema },
-    copyNote.handler,
-);
-
-server.registerTool(
-    vaultStatus.name,
-    { description: vaultStatus.description, inputSchema: vaultStatus.inputSchema },
-    vaultStatus.handler,
-);
-
-server.registerTool(
-    batchDelete.name,
-    { description: batchDelete.description, inputSchema: batchDelete.inputSchema },
-    batchDelete.handler,
-);
-
-server.registerTool(
-    batchMove.name,
-    { description: batchMove.description, inputSchema: batchMove.inputSchema },
-    batchMove.handler,
-);
-
-server.registerTool(
-    renameFolder.name,
-    { description: renameFolder.description, inputSchema: renameFolder.inputSchema },
-    renameFolder.handler,
-);
-
-server.registerTool(
-    extractTags.name,
-    { description: extractTags.description, inputSchema: extractTags.inputSchema },
-    extractTags.handler,
-);
-
-server.registerTool(
-    searchByName.name,
-    { description: searchByName.description, inputSchema: searchByName.inputSchema },
-    searchByName.handler,
-);
-
-server.registerTool(
-    createTemplate.name,
-    { description: createTemplate.description, inputSchema: createTemplate.inputSchema },
-    createTemplate.handler,
-);
-
-server.registerTool(
-    readFrontmatter.name,
-    { description: readFrontmatter.description, inputSchema: readFrontmatter.inputSchema },
-    readFrontmatter.handler,
-);
-
-server.registerTool(
-    writeFrontmatter.name,
-    { description: writeFrontmatter.description, inputSchema: writeFrontmatter.inputSchema },
-    writeFrontmatter.handler,
-);
-
-server.registerTool(
-    updateFrontmatter.name,
-    { description: updateFrontmatter.description, inputSchema: updateFrontmatter.inputSchema },
-    updateFrontmatter.handler,
-);
-
+// --- Main ---
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info(`notes-mcp server running`, { vault: vaultPath, tools: 22 });
+    logger.info(`notes-mcp server running`, { vault: vaultPath, tools: 25 });
+
+    // Keepalive: periodic heartbeat to prevent idle pipe timeouts
+    const keepaliveInterval = setInterval(() => {
+        logger.debug("keepalive heartbeat");
+    }, 60_000); // every 60 seconds
 
     process.on("SIGINT", () => {
+        clearInterval(keepaliveInterval);
         logger.info("Received SIGINT, shutting down gracefully");
         process.exit(0);
     });
 
     process.on("SIGTERM", () => {
+        clearInterval(keepaliveInterval);
         logger.info("Received SIGTERM, shutting down gracefully");
         process.exit(0);
     });
 }
 
 main().catch((err) => {
-    logger.error("Fatal error", { error: err instanceof Error ? err.message : String(err) });
+    logger.error("Fatal error during startup", { error: err instanceof Error ? err.message : String(err) });
     process.exit(1);
 });

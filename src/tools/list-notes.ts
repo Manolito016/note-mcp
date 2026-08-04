@@ -23,6 +23,7 @@ export async function handler({ path, recursive, limit, offset }: { path: string
     async function listDir(dir: string, prefix: string) {
         const items = await readdir(dir, { withFileTypes: true });
         for (const item of items) {
+            if (item.name === ".trash") continue;
             const relPath = prefix ? `${prefix}/${item.name}` : item.name;
             if (item.isDirectory()) {
                 entries.push(`[DIR]  ${relPath}/`);

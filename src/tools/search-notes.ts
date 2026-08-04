@@ -32,6 +32,7 @@ export async function handler({ query, path, fileExtension, useRegex, limit, off
     async function searchDir(dir: string) {
         const items = await readdir(dir, { withFileTypes: true });
         for (const item of items) {
+            if (item.name === ".trash") continue;
             const fullPath = `${dir}/${item.name}`;
             if (item.isDirectory()) {
                 await searchDir(fullPath);

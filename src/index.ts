@@ -30,6 +30,10 @@ import * as updateFrontmatter from "./tools/update-frontmatter.js";
 import * as extractLinks from "./tools/extract-links.js";
 import * as findBacklinks from "./tools/find-backlinks.js";
 import * as getGraph from "./tools/get-graph.js";
+import * as restoreNote from "./tools/restore-note.js";
+import * as listTrash from "./tools/list-trash.js";
+import * as watchChanges from "./tools/watch-changes.js";
+import { vaultWatcher } from "./utils/watcher.js";
 
 // --- Crash protection (registered before anything else) ---
 process.on("uncaughtException", (err) => {
@@ -76,7 +80,7 @@ function registerTool(name: string, description: string, inputSchema: z.ZodObjec
     server.registerTool(name, { description, inputSchema }, safeHandler(name, handler));
 }
 
-// --- Register all 25 tools ---
+// --- Register all 28 tools ---
 registerTool(readNote.name, readNote.description, readNote.inputSchema, readNote.handler);
 registerTool(writeNote.name, writeNote.description, writeNote.inputSchema, writeNote.handler);
 registerTool(createNote.name, createNote.description, createNote.inputSchema, createNote.handler);
@@ -102,12 +106,19 @@ registerTool(updateFrontmatter.name, updateFrontmatter.description, updateFrontm
 registerTool(extractLinks.name, extractLinks.description, extractLinks.inputSchema, extractLinks.handler);
 registerTool(findBacklinks.name, findBacklinks.description, findBacklinks.inputSchema, findBacklinks.handler);
 registerTool(getGraph.name, getGraph.description, getGraph.inputSchema, getGraph.handler);
+registerTool(restoreNote.name, restoreNote.description, restoreNote.inputSchema, restoreNote.handler);
+registerTool(listTrash.name, listTrash.description, listTrash.inputSchema, listTrash.handler);
+registerTool(watchChanges.name, watchChanges.description, watchChanges.inputSchema, watchChanges.handler);
 
 // --- Main ---
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info(`notes-mcp server running`, { vault: vaultPath, tools: 25 });
+    logger.info(`notes-mcp server running`, { vault: vaultPath, tools: 28 });
+
+    // Initialize file watcher for external change detection
+    await vaultWatcher.initialize();
+    vaultWatcher.start();
 
     // Keepalive: periodic heartbeat to prevent idle pipe timeouts
     const keepaliveInterval = setInterval(() => {
@@ -116,12 +127,14 @@ async function main() {
 
     process.on("SIGINT", () => {
         clearInterval(keepaliveInterval);
+        vaultWatcher.stop();
         logger.info("Received SIGINT, shutting down gracefully");
         process.exit(0);
     });
 
     process.on("SIGTERM", () => {
         clearInterval(keepaliveInterval);
+        vaultWatcher.stop();
         logger.info("Received SIGTERM, shutting down gracefully");
         process.exit(0);
     });

@@ -37,6 +37,7 @@ export async function handler({ path, includeTags }: { path: string; includeTags
     async function scanDir(dir: string) {
         const items = await readdir(dir, { withFileTypes: true });
         for (const item of items) {
+            if (item.name === ".trash") continue;
             const fullPath = `${dir}/${item.name}`;
             if (item.isDirectory()) {
                 await scanDir(fullPath);

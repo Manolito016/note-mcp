@@ -6,4 +6,7 @@ dist/
 pnpm-lock.yaml
 coverage/
 test-vault-temp*/
+prime/
+PRD.md
+*.tsbuildinfo
 *.log

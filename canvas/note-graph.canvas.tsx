@@ -123,20 +123,40 @@ function useForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, h
   return positions;
 }
 
-// Real vault data from D:\vault (scanned 2026-07-30)
+// Real vault data from D:\vault (scanned 2026-08-12)
 // Edges are computed from shared tags (2+ shared tags = connection)
 const rawNodes: GraphNode[] = [
+  // knowledge/
   { id: "knowledge/prime-method-lifecycle", path: "knowledge/prime-method-lifecycle.md", tags: ["prime-method", "project-lifecycle", "agent-dispatch", "orchestration", "knowledge-storage"] },
-  { id: "knowledge/sogo-prime-lessons", path: "knowledge/sogo-prime-lessons.md", tags: ["sogo", "prime", "lessons-learned", "brownfield", "process-improvement"] },
   { id: "knowledge/knowledge-graph-tools-and-canvas", path: "knowledge/knowledge-graph-tools-and-canvas.md", tags: ["knowledge-graph", "mcp", "canvas", "visualization", "links", "backlinks"] },
+  { id: "knowledge/website-crawler-lessons", path: "knowledge/website-crawler-lessons.md", tags: ["website-crawler", "lessons-learned", "python", "playwright", "mcp", "crawler", "skill-design"] },
+  { id: "knowledge/prime-method-agent-skill-wiring", path: "knowledge/prime-method-agent-skill-wiring.md", tags: ["prime-method", "wiring", "agents", "skills", "knowledge", "orchestrator", "phase-skills"] },
+  { id: "knowledge/qoder-custom-commands-guide", path: "knowledge/qoder-custom-commands-guide.md", tags: ["qoder", "commands", "slash-commands", "custom-commands", "plugin"] },
+  { id: "knowledge/qoder-custom-agents-guide", path: "knowledge/qoder-custom-agents-guide.md", tags: ["qoder", "agents", "subagents", "custom-agents", "frontmatter", "tools", "mcp"] },
+  { id: "knowledge/soft-delete-pattern-obsidian", path: "knowledge/soft-delete-pattern-obsidian.md", tags: ["soft-delete", "obsidian", "vault", "trash", "pattern", "notes-mcp"] },
+  { id: "knowledge/e2e-tester-skill-lessons", path: "knowledge/e2e-tester-skill-lessons.md", tags: ["e2e-testing", "playwright", "browser-automation", "skill-creation", "lessons-learned"] },
+  // decisions/
   { id: "decisions/sogo-video-stream-from-oss", path: "decisions/sogo-video-stream-from-oss.md", tags: ["oss", "streaming", "video-audit", "architecture-decision", "sogo-video"] },
   { id: "decisions/multi-zone-roi-detect-types", path: "decisions/multi-zone-roi-detect-types.md", tags: ["roi", "detection", "classification", "architecture", "multi-zone"] },
   { id: "decisions/storage-paths-to-project-folder", path: "decisions/storage-paths-to-project-folder.md", tags: ["storage", "paths", "flash-drive", "project-folder", "data-directory", "migration"] },
   { id: "decisions/prime-method-vault-integration", path: "decisions/prime-method-vault-integration.md", tags: ["prime-method", "vault", "notes-mcp", "knowledge-persistence", "orchestrator", "cross-project-learning"] },
+  { id: "decisions/website-crawler-architecture", path: "decisions/website-crawler-architecture.md", tags: ["website-crawler", "architecture", "decisions", "adr", "python", "playwright"] },
+  { id: "decisions/prime-method-vault-persistence", path: "decisions/prime-method-vault-persistence.md", tags: ["prime-method", "vault", "context-compaction", "knowledge-persistence", "notes-mcp"] },
+  { id: "decisions/sogo-video-requirements", path: "decisions/sogo-video-requirements.md", tags: ["sogo-video", "requirements", "prime", "phase3", "polish"] },
+  { id: "decisions/sogo-video-architecture", path: "decisions/sogo-video-architecture.md", tags: ["sogo-video", "architecture", "prime", "phase4", "polish"] },
+  { id: "decisions/sogo-video-spec", path: "decisions/sogo-video-spec.md", tags: ["sogo-video", "spec", "prime", "phase6", "polish"] },
+  { id: "decisions/sogo-security-audit", path: "decisions/sogo-security-audit.md", tags: ["sogo", "security", "authentication", "path-traversal", "architecture-decision"] },
+  { id: "decisions/ethical-hacker-skill-architecture", path: "decisions/ethical-hacker-skill-architecture.md", tags: ["skill", "security", "architecture", "owasp"] },
+  { id: "decisions/ethical-hacker-requirements-architecture", path: "decisions/ethical-hacker-requirements-architecture.md", tags: ["phase3", "phase4", "ethical-hacker", "polish", "requirements", "architecture"] },
+  { id: "decisions/ethical-hacker-design-spec", path: "decisions/ethical-hacker-design-spec.md", tags: ["phase5", "phase6", "ethical-hacker", "polish", "design", "spec"] },
+  // projects/
   { id: "projects/sogo-clip-uploader-architecture", path: "projects/sogo-clip-uploader-architecture.md", tags: ["sogo", "oss", "video-processing", "pipeline", "architecture"] },
+  { id: "projects/notes-mcp-polish-retrospective", path: "projects/notes-mcp-polish-retrospective.md", tags: ["notes-mcp", "prime", "polish-mode", "retrospective", "soft-delete", "file-watching"] },
+  { id: "projects/sogo-clip-uploader-easyocr-calibration", path: "projects/sogo-clip-uploader-easyocr-calibration.md", tags: ["sogo", "easyocr", "ocr", "ffmpeg", "oss", "calibration", "docker", "uv"] },
   { id: "projects/sogo-video/roi-feature", path: "projects/sogo-video/roi-feature.md", tags: ["roi", "polygon", "yolo", "detection", "canvas", "opencv", "branch", "mask"] },
   { id: "projects/sogo-video/spatial-detection-classification", path: "projects/sogo-video/spatial-detection-classification.md", tags: ["classification", "spatial", "roi", "detection", "video-audit", "yolo"] },
   { id: "projects/sogo-video/live-video-bounding-box-overlay", path: "projects/sogo-video/live-video-bounding-box-overlay.md", tags: ["live-monitor", "bounding-box", "canvas", "websocket", "yolo", "detection-overlay"] },
+  { id: "projects/sogo-video/2026-07-28-prime-polish-retrospective", path: "projects/sogo-video/2026-07-28-prime-polish-retrospective.md", tags: ["prime", "polish", "retrospective", "sogo-video", "deployment", "quality"] },
   { id: "projects/prime-method/hackathon-prime-installation", path: "projects/prime-method/hackathon-prime-installation.md", tags: ["prime-method", "hackathon", "plugin-installation", "qoderwork", "super-skills", "mvp-framework"] },
   { id: "projects/prime-method/plugin-consolidation-update", path: "projects/prime-method/plugin-consolidation-update.md", tags: ["prime-method", "plugin-update", "consolidation", "qoder-plugins"] },
   { id: "projects/prime-method/merge-v5.1.0", path: "projects/prime-method/merge-v5.1.0.md", tags: [] },
@@ -145,23 +165,50 @@ const rawNodes: GraphNode[] = [
   { id: "projects/sogo/prime-full-lifecycle", path: "projects/sogo/prime-full-lifecycle.md", tags: ["prime", "sogo", "lifecycle", "brownfield", "documentation", "design-system", "evaluation"] },
   { id: "projects/sogo/per-branch-processing-config", path: "projects/sogo/per-branch-processing-config.md", tags: ["branch-config", "per-branch", "processing", "modal", "detection-filter", "max-frames", "localStorage"] },
   { id: "projects/sogo/transaction-clip-extractor", path: "projects/sogo/transaction-clip-extractor.md", tags: ["transaction-clip-extractor", "oss", "ffmpeg", "csv-parsing", "video-processing", "sogo"] },
+  { id: "projects/sogo/charter", path: "projects/sogo/charter.md", tags: ["sogo", "prime", "project-charter", "fastapi", "yolo", "oss", "brownfield-audit"] },
   { id: "projects/sogo-clip-uploader/web-ui-date-overlap", path: "projects/sogo-clip-uploader/web-ui-date-overlap.md", tags: ["sogo", "clip-uploader", "web-ui", "date-overlap", "stores-api"] },
-  { id: "solutions/sogo-video-dashboard-bugs", path: "solutions/sogo-video-dashboard-bugs.md", tags: [] },
-  { id: "solutions/skip-already-audited-videos", path: "solutions/skip-already-audited-videos.md", tags: ["audit", "skip", "performance", "database"] },
-  { id: "solutions/batch-audit-concurrency-retry", path: "solutions/batch-audit-concurrency-retry.md", tags: ["oss", "yolo", "concurrency", "retry", "fastapi", "debugging", "sogo-video"] },
+  { id: "projects/sogo-clip-uploader/xlsx-transaction-source", path: "projects/sogo-clip-uploader/xlsx-transaction-source.md", tags: ["sogo-clip-uploader", "xlsx", "transactions", "pipeline", "feature"] },
+  { id: "projects/sogo-clip-uploader/oss-archive-output-fixes", path: "projects/sogo-clip-uploader/oss-archive-output-fixes.md", tags: ["oss", "archive", "output-dir", "api-stores", "xlsx", "error-handling"] },
+  { id: "projects/sogo-clip-uploader/segment-download-implementation", path: "projects/sogo-clip-uploader/segment-download-implementation.md", tags: ["segment-download", "oss", "bandwidth", "pipeline", "optimization"] },
+  { id: "projects/sogo-clip-uploader/mp4-segment-download-fails", path: "projects/sogo-clip-uploader/mp4-segment-download-fails.md", tags: ["mp4", "moov-atom", "segment-download", "ffmpeg", "oss", "video-processing"] },
+  { id: "projects/sogo-clip-uploader/http-streaming-implementation", path: "projects/sogo-clip-uploader/http-streaming-implementation.md", tags: ["http-streaming", "signed-url", "ffmpeg", "oss", "video-processing", "optimization"] },
+  { id: "projects/sogo-clip-uploader/pipeline-bugs-fixed-aug5", path: "projects/sogo-clip-uploader/pipeline-bugs-fixed-aug5.md", tags: ["sogo-clip-uploader", "pipeline", "bugfix", "oss", "xlsx"] },
+  { id: "projects/sogo-clip-uploader/jwt-auth-implementation", path: "projects/sogo-clip-uploader/jwt-auth-implementation.md", tags: ["auth", "jwt", "fastapi", "security", "sogo-clip-uploader"] },
+  { id: "projects/sogo-clip-uploader/docker-commands", path: "projects/sogo-clip-uploader/docker-commands.md", tags: ["docker", "sogo-clip-uploader", "commands", "deployment"] },
+  { id: "projects/sogo-clip-uploader/docker-volume-architecture", path: "projects/sogo-clip-uploader/docker-volume-architecture.md", tags: ["docker", "sogo-clip-uploader", "sqlite", "volume-mounts", "architecture"] },
+  { id: "projects/website-crawler-skill/charter", path: "projects/website-crawler-skill/charter.md", tags: ["website-crawler", "skill", "python", "playwright", "crawler", "extraction"] },
+  { id: "projects/website-crawler-skill/retrospective", path: "projects/website-crawler-skill/retrospective.md", tags: ["website-crawler", "skill", "python", "playwright", "retrospective", "mcp", "architecture"] },
+  { id: "projects/website-crawler/test-results-tiaong", path: "projects/website-crawler/test-results-tiaong.md", tags: ["website-crawler", "crawl", "tiaong", "images", "httpx", "test-results"] },
+  { id: "projects/certificate-pptx/certificate-generation", path: "projects/certificate-pptx/certificate-generation.md", tags: ["python", "pptx", "certificate", "bayanaIhan", "design", "powerpoint"] },
+  { id: "projects/sogo-video-auditor/charter", path: "projects/sogo-video-auditor/charter.md", tags: ["sogo-video", "polish", "prime", "project-charter"] },
+  { id: "projects/sogo-video-auditor/problem-analysis", path: "projects/sogo-video-auditor/problem-analysis.md", tags: ["sogo-video", "polish", "problem-analysis", "prime", "phase2"] },
+  { id: "projects/notes-mcp-polish/charter", path: "projects/notes-mcp-polish/charter.md", tags: ["notes-mcp", "prime-method", "polish", "project-charter"] },
+  { id: "projects/ethical-hacker-skill/charter", path: "projects/ethical-hacker-skill/charter.md", tags: ["skill", "security", "ethical-hacking", "owasp", "vulnerability", "web-security"] },
+  { id: "projects/ethical-hacker-skill/phase2-problem-research", path: "projects/ethical-hacker-skill/phase2-problem-research.md", tags: ["phase2", "ethical-hacker", "polish", "research", "problem-analysis"] },
+  { id: "projects/ethical-hacker-skill/phase78-implementation", path: "projects/ethical-hacker-skill/phase78-implementation.md", tags: ["phase7", "phase8", "ethical-hacker", "polish", "implementation", "build"] },
+  { id: "projects/e2e-tester-skill/charter", path: "projects/e2e-tester-skill/charter.md", tags: ["e2e-testing", "playwright", "skill-creation", "browser-automation", "lightning"] },
+  { id: "projects/e2e-tester-skill/retrospective", path: "projects/e2e-tester-skill/retrospective.md", tags: ["e2e-testing", "playwright", "skill-creation", "retrospective", "lightning"] },
+  { id: "projects/inventory-system/charter", path: "projects/inventory-system/charter.md", tags: ["business-system", "b2b-trading", "b2c-printing", "philippines", "inventory", "accounts-receivable", "polish-mode", "tier-3"] },
+  { id: "projects/inventory-system/phase-2-4-summary", path: "projects/inventory-system/phase-2-4-summary.md", tags: ["inventory-system", "phase-2-4", "architecture", "django", "react", "postgresql", "polish-mode"] },
+  // solutions/
   { id: "solutions/pytorch-cuda-installation", path: "solutions/pytorch-cuda-installation.md", tags: ["pytorch", "cuda", "yolo", "gpu", "uv", "dependencies"] },
   { id: "solutions/bcrypt-passlib-incompatibility", path: "solutions/bcrypt-passlib-incompatibility.md", tags: ["python", "bcrypt", "passlib", "authentication", "compatibility"] },
-  { id: "solutions/roi-canvas-frame-display-bug", path: "solutions/roi-canvas-frame-display-bug.md", tags: ["roi", "canvas", "bug-fix", "frame-display", "javascript"] },
   { id: "solutions/mcp-server-pipe-crash", path: "solutions/mcp-server-pipe-crash.md", tags: ["mcp", "crash", "pipe-error", "nodejs", "v22-downgrade", "resilience"] },
-  { id: "solutions/roi-config-driven-detection-logic", path: "solutions/roi-config-driven-detection-logic.md", tags: ["roi", "detection-logic", "detect-types", "config-driven", "filtering"] },
-  { id: "solutions/stop-button-not-responding-during-video-analysis", path: "solutions/stop-button-not-responding-during-video-analysis.md", tags: ["stop-button", "threading", "websocket", "live-monitor", "bug-fix"] },
-  { id: "solutions/video-status-stuck-at-downloading", path: "solutions/video-status-stuck-at-downloading.md", tags: ["live-monitor", "websocket", "status-bug", "downloading", "react-state"] },
-  { id: "solutions/stale-audit-job-blocks-restart", path: "solutions/stale-audit-job-blocks-restart.md", tags: ["audit", "stale-thread", "concurrency", "stop-event", "bug-fix"] },
-  { id: "solutions/websocket-state-loss-on-page-refresh", path: "solutions/websocket-state-loss-on-page-refresh.md", tags: ["websocket", "page-refresh", "state-restore", "reconnect", "audit-progress"] },
-  { id: "solutions/bounding-box-roi-overlay-audit-detail-live-monitor", path: "solutions/bounding-box-roi-overlay-audit-detail-live-monitor.md", tags: ["bounding-box", "roi", "canvas", "overlay", "audit-detail", "live-monitor", "detection-visualization"] },
-  { id: "solutions/roi-filter-cards-only-constrained", path: "solutions/roi-filter-cards-only-constrained.md", tags: ["roi", "detection-filter", "bounding-box", "person", "employee", "card", "whole-screen"] },
-  { id: "solutions/live-audit-preview-frame-streaming", path: "solutions/live-audit-preview-frame-streaming.md", tags: ["websocket", "live-preview", "yolo", "bounding-box", "real-time", "frame-streaming"] },
-  { id: "solutions/oss-archive-hevc-clip-extraction", path: "solutions/oss-archive-hevc-clip-extraction.md", tags: ["oss", "alibaba-cloud", "ffmpeg", "hevc", "archive", "video-processing", "clip-extraction"] },
+  { id: "solutions/exfat-native-binding-failures", path: "solutions/exfat-native-binding-failures.md", tags: ["exfat", "nodejs", "vitest", "native-bindings", "sandbox", "workaround"] },
+  { id: "solutions/ethical-hacker-skill-installation-fix", path: "solutions/ethical-hacker-skill-installation-fix.md", tags: ["fix", "skill", "installation", "ethical-hacker"] },
+  { id: "solutions/ethical-hacker-tool-auto-installation", path: "solutions/ethical-hacker-tool-auto-installation.md", tags: ["skill", "security", "tool-setup", "automation", "ethical-hacker"] },
+  { id: "solutions/e2e-tester-skill-enhancement", path: "solutions/e2e-tester-skill-enhancement.md", tags: ["e2e-testing", "playwright", "skill-enhancement", "multi-mcp", "power-patterns"] },
+  { id: "solutions/migration-v8-silent-failure", path: "solutions/migration-v8-silent-failure.md", tags: ["sqlite", "migration", "database", "schema", "bug-fix", "sogo-video-auditor"] },
+  { id: "solutions/roi-import-from-sogo-oss", path: "solutions/roi-import-from-sogo-oss.md", tags: ["sogo-video-auditor", "roi", "import", "sogo-oss", "card-detection"] },
+  { id: "solutions/audit-controls-in-results-modal", path: "solutions/audit-controls-in-results-modal.md", tags: ["sogo-video-auditor", "results", "audit-controls", "ui-enhancement"] },
+  { id: "solutions/audit-controls-functional-backend-fix", path: "solutions/audit-controls-functional-backend-fix.md", tags: ["sogo-video-auditor", "audit-controls", "api-fix", "backend", "detection-endpoint"] },
+  { id: "solutions/clip-manifest-full-detail-modal", path: "solutions/clip-manifest-full-detail-modal.md", tags: ["clip-manifest", "modal", "live-monitor", "audit-controls", "video-player", "detection-results"] },
+  { id: "solutions/switch-flash-drive-to-ssd", path: "solutions/switch-flash-drive-to-ssd.md", tags: ["ssd", "clip-source", "docker", "volume-mount", "live-monitor"] },
+  { id: "solutions/fcfs-audit-ordering", path: "solutions/fcfs-audit-ordering.md", tags: ["fcfs", "audit-ordering", "clip-manifest", "first-come-first-serve"] },
+  { id: "solutions/transaction-csv-integration", path: "solutions/transaction-csv-integration.md", tags: ["transaction-csv", "clip-matching", "local-clips", "metadata"] },
+  { id: "solutions/flex-sidebar-collapse-long-pre-lines", path: "solutions/flex-sidebar-collapse-long-pre-lines.md", tags: ["css", "flexbox", "min-width", "layout", "sidebar", "sogo-clip-uploader", "debugging"] },
+  // testing/
+  { id: "testing/jets-trophy-crm/e2e-report-2026-08-06", path: "testing/jets-trophy-crm/e2e-report-2026-08-06.md", tags: ["e2e", "jets-trophy-crm", "security", "full-audit", "false-positives", "lessons-learned"] },
 ];
 
 // Compute edges: connect nodes that share 2+ tags
@@ -194,10 +241,14 @@ const tagColors: Record<string, string> = {
   decisions: "#f59e0b",
   projects: "#22c55e",
   solutions: "#ef4444",
-  // Topics
+  testing: "#a855f7",
+  // Topics - sogo ecosystem
   sogo: "#8b5cf6",
+  "sogo-video": "#7c3aed",
+  "sogo-clip-uploader": "#a78bfa",
   prime: "#6366f1",
   "prime-method": "#6366f1",
+  // Topics - detection & video
   roi: "#ec4899",
   detection: "#f97316",
   yolo: "#14b8a6",
@@ -210,12 +261,32 @@ const tagColors: Record<string, string> = {
   "video-processing": "#4ade80",
   "video-audit": "#34d399",
   ffmpeg: "#a3e635",
+  // Topics - tools & infra
   mcp: "#818cf8",
   audit: "#fbbf24",
   concurrency: "#fb7185",
   architecture: "#f59e0b",
   python: "#3b82f6",
   pytorch: "#f97316",
+  docker: "#0ea5e9",
+  // Topics - skills & agents
+  skill: "#d946ef",
+  "e2e-testing": "#10b981",
+  playwright: "#34d399",
+  "website-crawler": "#06b6d4",
+  "ethical-hacker": "#f43f5e",
+  security: "#ef4444",
+  qoder: "#6366f1",
+  "notes-mcp": "#818cf8",
+  // Topics - inventory system
+  "inventory-system": "#22c55e",
+  django: "#10b981",
+  react: "#38bdf8",
+  postgresql: "#3b82f6",
+  // Topics - misc
+  "lessons-learned": "#fbbf24",
+  retrospective: "#fb923c",
+  polish: "#c084fc",
 };
 
 function getTagColor(tag: string): string {
@@ -439,6 +510,10 @@ export default function NoteGraph() {
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#ef4444" }} />
             <span>solutions</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#a855f7" }} />
+            <span>testing</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px" }}>
             <div style={{ width: "20px", height: "2px", background: "#6366f1" }} />

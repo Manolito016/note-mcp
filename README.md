@@ -1,4 +1,4 @@
-# notes-mcp
+# quill-mcp
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for managing a markdown notes vault. Gives AI assistants the ability to create, read, update, delete, move, search, and organize markdown notes on the local filesystem.
 
@@ -36,8 +36,8 @@ All paths are resolved relative to the configured vault root. Path traversal att
 ## Setup
 
 ```bash
-git clone https://github.com/Manolito016/note-mcp.git
-cd note-mcp
+git clone https://github.com/Lito016/quill-mcp.git
+cd quill-mcp
 npm install
 npm run build
 ```
@@ -51,7 +51,7 @@ Add the server to your MCP client configuration and point it to your vault:
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/notes-mcp/dist/index.js", "D:/vault"]
+      "args": ["d:/quill-mcp/dist/index.js", "D:/vault"]
     }
   }
 }
@@ -66,7 +66,7 @@ Alternatively, use a `.env` file so you don't need the path in args (see [Config
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/notes-mcp/dist/index.js"]
+      "args": ["d:/quill-mcp/dist/index.js"]
     }
   }
 }

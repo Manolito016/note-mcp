@@ -1,5 +1,5 @@
 {
-  "name": "notes-mcp",
+  "name": "quill-mcp",
   "version": "1.0.0",
   "description": "MCP server for managing a markdown notes vault",
   "author": "Manolito016",
@@ -7,7 +7,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "notes-mcp": "dist/index.js"
+    "quill-mcp": "dist/index.js"
   },
   "files": [
     "dist"

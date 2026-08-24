@@ -70,7 +70,7 @@ function safeHandler<H extends AnyHandler>(name: string, handler: H): H {
 const vaultPath = initVault();
 
 const server = new McpServer({
-    name: "notes-mcp",
+    name: "quill-mcp",
     version: "1.0.0",
 });
 
@@ -114,7 +114,7 @@ registerTool(watchChanges.name, watchChanges.description, watchChanges.inputSche
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info(`notes-mcp server running`, { vault: vaultPath, tools: 28 });
+    logger.info(`quill-mcp server running`, { vault: vaultPath, tools: 28 });
 
     // Initialize file watcher for external change detection
     await vaultWatcher.initialize();

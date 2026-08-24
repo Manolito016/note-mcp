@@ -1,6 +1,6 @@
-# Contributing to notes-mcp
+# Contributing to quill-mcp
 
-Thank you for your interest in contributing to notes-mcp! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to quill-mcp! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -9,7 +9,7 @@ Please be respectful and constructive in all interactions.
 ## Development Setup
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/notes-mcp.git`
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/quill-mcp.git`
 3. Install dependencies: `npm install`
 4. Create a branch: `git checkout -b feature/your-feature-name`
 

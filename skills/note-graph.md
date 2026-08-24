@@ -27,7 +27,7 @@ When the user invokes `/note-graph`, display an interactive knowledge graph visu
    - `edges`: Array of `{ from, to, type }`
    - `summary`: Statistics about the graph
 
-3. **Update the canvas component** at `d:\notes-mcp\canvas\note-graph.canvas.tsx`:
+3. **Update the canvas component** at `d:\quill-mcp\canvas\note-graph.canvas.tsx`:
    - Replace the `sampleGraphData` constant with the actual graph data from step 1
    - Keep the component structure the same
 

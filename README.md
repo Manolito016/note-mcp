@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="quill-mcp" width="200" />
+</p>
+
 # quill-mcp
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for managing a markdown notes vault. Gives AI assistants the ability to create, read, update, delete, move, search, and organize markdown notes on the local filesystem.

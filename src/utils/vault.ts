@@ -1,6 +1,7 @@
 import { resolve, relative, isAbsolute, join, dirname } from "node:path";
 import { access, stat } from "node:fs/promises";
-import { constants, readFileSync } from "node:fs";
+import { constants, readFileSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 
@@ -33,8 +34,15 @@ function resolveVaultRoot(): string {
     try {
         const configContent = readFileSync(configPath, "utf-8");
         const config = JSON.parse(configContent);
-        if (config.vaultPath) {
+        if (config.vaultPath && config.vaultPath.trim() !== "") {
             return resolve(config.vaultPath);
+        }
+        // vaultPath is empty — try auto-detection
+        const autoDetected = autoDetectVault();
+        if (autoDetected) {
+            console.log(`Auto-detected vault at: ${autoDetected}`);
+            console.log(`Tip: Edit vault.config.json to set your vault path explicitly.`);
+            return autoDetected;
         }
     } catch {
         // Config file doesn't exist or is invalid — continue to next method
@@ -53,9 +61,41 @@ function resolveVaultRoot(): string {
         "  1. CLI argument:   node dist/index.js /path/to/vault\n" +
         "  2. Environment:    set NOTES_VAULT_PATH=/path/to/vault\n" +
         "  3. Config file:    edit vault.config.json → { \"vaultPath\": \"/path/to/vault\" }\n" +
-        "  4. .env file:      add NOTES_VAULT_PATH=/path/to/vault to a .env file\n",
+        "  4. .env file:      add NOTES_VAULT_PATH=/path/to/vault to a .env file\n\n" +
+        "Quick start: Edit vault.config.json and set your vault path.\n",
     );
     process.exit(1);
+}
+
+/**
+ * Auto-detect common vault locations (Obsidian, etc.)
+ */
+function autoDetectVault(): string | null {
+    const home = homedir();
+
+    // Common vault locations to check
+    const candidates = [
+        // Windows
+        join(home, "Documents", "vault"),
+        join(home, "Documents", "Obsidian", "vault"),
+        join(home, "Obsidian", "vault"),
+        join("D:/", "vault"),
+        join("C:/", "vault"),
+        // macOS
+        join(home, "Documents", "vault"),
+        join(home, "Library", "Mobile Documents", "iCloud~md~obsidian", "Documents"),
+        // Linux
+        join(home, "Documents", "vault"),
+        join(home, "obsidian-vault"),
+    ];
+
+    for (const candidate of candidates) {
+        if (existsSync(candidate)) {
+            return candidate;
+        }
+    }
+
+    return null;
 }
 
 /**

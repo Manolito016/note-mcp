@@ -215,6 +215,8 @@ Edit `vault.config.json` in the project root and set your vault path:
 }
 ```
 
+If `vaultPath` is empty, the server will auto-detect common vault locations (Obsidian folders, `D:/vault`, etc.).
+
 Then add the server to your MCP client config (no path in args needed):
 
 ```json

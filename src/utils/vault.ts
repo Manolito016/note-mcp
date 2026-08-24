@@ -1,7 +1,8 @@
-import { resolve, relative, isAbsolute, join } from "node:path";
+import { resolve, relative, isAbsolute, join, dirname } from "node:path";
 import { access, stat } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, readFileSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
+import { fileURLToPath } from "node:url";
 
 let vaultRoot: string;
 
@@ -11,7 +12,8 @@ let vaultRoot: string;
  * Priority order:
  * 1. CLI argument (`node dist/index.js /path/to/vault`)
  * 2. Environment variable `NOTES_VAULT_PATH`
- * 3. `.env` file in the project root (`NOTES_VAULT_PATH=...`)
+ * 3. `vault.config.json` in the project root (`{ "vaultPath": "..." }`)
+ * 4. `.env` file in the project root (`NOTES_VAULT_PATH=...`)
  */
 function resolveVaultRoot(): string {
     // 1. CLI argument
@@ -26,7 +28,19 @@ function resolveVaultRoot(): string {
         return resolve(envVar);
     }
 
-    // 3. .env file in the project root
+    // 3. vault.config.json in the project root
+    const configPath = resolve(getProjectRoot(), "vault.config.json");
+    try {
+        const configContent = readFileSync(configPath, "utf-8");
+        const config = JSON.parse(configContent);
+        if (config.vaultPath) {
+            return resolve(config.vaultPath);
+        }
+    } catch {
+        // Config file doesn't exist or is invalid — continue to next method
+    }
+
+    // 4. .env file in the project root
     loadDotenv();
     const dotenvPath = process.env.NOTES_VAULT_PATH;
     if (dotenvPath) {
@@ -38,9 +52,20 @@ function resolveVaultRoot(): string {
         "Set your vault path using one of these methods:\n" +
         "  1. CLI argument:   node dist/index.js /path/to/vault\n" +
         "  2. Environment:    set NOTES_VAULT_PATH=/path/to/vault\n" +
-        "  3. .env file:      add NOTES_VAULT_PATH=/path/to/vault to a .env file\n",
+        "  3. Config file:    edit vault.config.json → { \"vaultPath\": \"/path/to/vault\" }\n" +
+        "  4. .env file:      add NOTES_VAULT_PATH=/path/to/vault to a .env file\n",
     );
     process.exit(1);
+}
+
+/**
+ * Get the project root directory (where vault.config.json lives).
+ */
+function getProjectRoot(): string {
+    // In compiled output: dist/utils/vault.js → go up 2 levels
+    // In source: src/utils/vault.ts → go up 2 levels
+    const currentDir = dirname(fileURLToPath(import.meta.url));
+    return resolve(currentDir, "..", "..");
 }
 
 /**

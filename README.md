@@ -58,7 +58,8 @@ All tools are registered in `src/index.ts` via `registerTool()` which wraps each
 
 1. CLI argument: `node dist/index.js D:/vault`
 2. Environment variable: `NOTES_VAULT_PATH`
-3. `.env` file: `NOTES_VAULT_PATH=D:/vault`
+3. `vault.config.json`: `{ "vaultPath": "D:/vault" }` (simplest — just edit the file)
+4. `.env` file: `NOTES_VAULT_PATH=D:/vault`
 
 ### Key Design Decisions
 
@@ -204,6 +205,31 @@ npm run build
 
 ## Add to Your MCP Client
 
+### Option 1: Using vault.config.json (simplest)
+
+Edit `vault.config.json` in the project root and set your vault path:
+
+```json
+{
+  "vaultPath": "D:/vault"
+}
+```
+
+Then add the server to your MCP client config (no path in args needed):
+
+```json
+{
+  "mcpServers": {
+    "notes": {
+      "command": "node",
+      "args": ["d:/notes-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+### Option 2: Using CLI argument
+
 Add the server to your MCP client configuration and point it to your vault:
 
 ```json
@@ -219,19 +245,6 @@ Add the server to your MCP client configuration and point it to your vault:
 
 Replace `D:/vault` with the path to your notes folder. The AI agent will automatically start the server and use the tools.
 
-Alternatively, use a `.env` file so you don't need the path in args (see [Configuration](#configuration)):
-
-```json
-{
-  "mcpServers": {
-    "notes": {
-      "command": "node",
-      "args": ["d:/notes-mcp/dist/index.js"]
-    }
-  }
-}
-```
-
 ## Configuration
 
 The vault path is resolved from these sources (in priority order):
@@ -240,9 +253,10 @@ The vault path is resolved from these sources (in priority order):
 |----------|--------|-----|
 | 1 (highest) | CLI argument | `"args": ["...", "D:/vault"]` in MCP config |
 | 2 | Environment variable | Set `NOTES_VAULT_PATH` in your system env |
-| 3 (lowest) | `.env` file | Add `NOTES_VAULT_PATH=D:/vault` to the project `.env` |
+| 3 | Config file | Edit `vault.config.json` → `{ "vaultPath": "D:/vault" }` |
+| 4 (lowest) | `.env` file | Add `NOTES_VAULT_PATH=D:/vault` to the project `.env` |
 
-The `.env` approach is the most convenient — set it once and it works for any MCP client config without repeating the path.
+The **config file** approach is the simplest — just edit `vault.config.json` and set your vault path. No env vars, no CLI args needed.
 
 ## Tools Reference
 

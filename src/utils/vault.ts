@@ -34,7 +34,7 @@ function resolveVaultRoot(): string {
     try {
         const configContent = readFileSync(configPath, "utf-8");
         const config = JSON.parse(configContent);
-        if (config.vaultPath && config.vaultPath.trim() !== "") {
+        if (config.vaultPath && config.vaultPath.trim() !== "" && !config.vaultPath.includes("enter the path")) {
             return resolve(config.vaultPath);
         }
         // vaultPath is empty — try auto-detection

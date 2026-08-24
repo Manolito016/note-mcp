@@ -65,7 +65,7 @@ All tools are registered in `src/index.ts` via `registerTool()` which wraps each
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Soft delete | `.trash/` folder | Obsidian-compatible, recoverable |
+| Soft delete | `.trash/` folder | Compatible with markdown editors, recoverable |
 | File watching | Polling (mtime+size) | No external deps, exFAT-safe |
 | Path security | `resolve()` + prefix check | Blocks traversal attacks |
 | Trash exclusion | Skip `.trash` in list/search/graph | Trash contents don't pollute results |
@@ -186,7 +186,7 @@ npm run format:check   # Prettier check
 - **Batch Delete** — delete multiple notes at once (soft or permanent)
 - **Batch Move** — move multiple notes at once
 - **Knowledge Graph** — extract links, find backlinks, build full graph with nodes and edges
-- **File Watching** — detect external changes from Obsidian, VS Code, or other editors
+- **File Watching** — detect external changes from other editors or tools
 - **Trash Management** — list and restore items from the trash
 - **Vault Status** — check if the vault is accessible and healthy
 
@@ -217,7 +217,7 @@ Edit `vault.config.json` in the project root and set your vault path:
 
 The default value is `"enter the path"` — replace it with your actual vault location.
 
-If `vaultPath` is empty or still says `"enter the path"`, the server will auto-detect common vault locations (Obsidian folders, `D:/vault`, etc.).
+If `vaultPath` is empty or still says `"enter the path"`, the server will auto-detect common vault locations (`D:/vault`, `~/Documents/vault`, etc.).
 
 Then add the server to your MCP client config (no path in args needed):
 

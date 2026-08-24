@@ -68,7 +68,7 @@ function resolveVaultRoot(): string {
 }
 
 /**
- * Auto-detect common vault locations (Obsidian, etc.)
+ * Auto-detect common vault locations.
  */
 function autoDetectVault(): string | null {
     const home = homedir();
@@ -77,16 +77,16 @@ function autoDetectVault(): string | null {
     const candidates = [
         // Windows
         join(home, "Documents", "vault"),
-        join(home, "Documents", "Obsidian", "vault"),
-        join(home, "Obsidian", "vault"),
+        join(home, "Documents", "notes"),
+        join(home, "Documents", "markdown"),
         join("D:/", "vault"),
         join("C:/", "vault"),
         // macOS
         join(home, "Documents", "vault"),
-        join(home, "Library", "Mobile Documents", "iCloud~md~obsidian", "Documents"),
+        join(home, "Documents", "notes"),
         // Linux
         join(home, "Documents", "vault"),
-        join(home, "obsidian-vault"),
+        join(home, "vault"),
     ];
 
     for (const candidate of candidates) {

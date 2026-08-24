@@ -3,7 +3,7 @@ import * as z from "zod";
 
 export const name = "watch_changes";
 export const description =
-    "Check for external file changes detected since last poll. Returns created, modified, and deleted files. Useful for detecting changes from Obsidian or other editors.";
+    "Check for external file changes detected since last poll. Returns created, modified, and deleted files. Useful for detecting changes from other editors or tools.";
 export const inputSchema = z.object({
     clear: z.boolean().default(true).describe("If true, clear pending changes after reading (default: true)"),
 });

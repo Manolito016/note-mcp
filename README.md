@@ -6,6 +6,162 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for managing a markdown notes vault. Gives AI assistants the ability to create, read, update, delete, move, search, and organize markdown notes on the local filesystem.
 
+---
+
+## Project Context
+
+> This section exists so an AI agent can restore full project context after a context window reset.
+
+### What This Is
+
+quill-mcp is a **stdio-based MCP server** written in TypeScript. It runs as a child process started by an MCP client (Qoder, Claude Desktop, etc.) and exposes **28 tools** for managing a local markdown vault. It is NOT a standalone app — it is always launched and managed by the host MCP client.
+
+### GitHub
+
+- **Repo:** https://github.com/Lito016/snapcheck
+- **License:** MIT
+
+### Runtime Environment
+
+- **Node.js:** v22 LTS required (v24 has a silent crash bug on Windows — do NOT use)
+- **Node path:** `C:\Users\Admin\node-v22\node-v22.22.1-win-x64\node.exe`
+- **Project location:** `D:\notes-mcp`
+- **Vault location:** `D:\vault` (configurable)
+- **Filesystem:** exFAT (USB drive) — native `.node` bindings fail here, so vitest v4 cannot execute tests on this drive. Tests compile but must be validated on NTFS or CI.
+
+### Architecture
+
+```
+Client (Qoder/Claude) ←stdio→ index.ts → tool handlers → vault filesystem
+```
+
+- **Transport:** stdio (JSON-RPC over stdin/stdout)
+- **SDK:** `@modelcontextprotocol/sdk` v1.29+
+- **Validation:** Zod schemas on every tool input
+- **Error handling:** Every tool handler is wrapped in `safeHandler()` — catches exceptions and returns MCP error responses instead of crashing the process
+- **Crash protection:** `uncaughtException` and `unhandledRejection` listeners registered at startup
+- **Keepalive:** 60-second heartbeat interval prevents idle pipe timeouts
+
+### Tool Registration Pattern
+
+Each tool is a separate file in `src/tools/` exporting:
+```typescript
+export const name = "tool_name";
+export const description = "...";
+export const inputSchema = z.object({ ... });
+export async function handler(params) { return { content: [...] }; }
+```
+
+All tools are registered in `src/index.ts` via `registerTool()` which wraps each handler in `safeHandler()`.
+
+### Vault Path Resolution (priority order)
+
+1. CLI argument: `node dist/index.js D:/vault`
+2. Environment variable: `NOTES_VAULT_PATH`
+3. `.env` file: `NOTES_VAULT_PATH=D:/vault`
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Soft delete | `.trash/` folder | Obsidian-compatible, recoverable |
+| File watching | Polling (mtime+size) | No external deps, exFAT-safe |
+| Path security | `resolve()` + prefix check | Blocks traversal attacks |
+| Trash exclusion | Skip `.trash` in list/search/graph | Trash contents don't pollute results |
+| Watcher interval | Configurable via `NOTES_WATCH_INTERVAL` | Default 5000ms, adjustable |
+
+### Project Structure
+
+```
+d:\notes-mcp\
+├── src/
+│   ├── index.ts                  # Entry point, server setup, tool registration
+│   ├── tools/                    # One file per MCP tool (28 tools)
+│   │   ├── read-note.ts
+│   │   ├── write-note.ts
+│   │   ├── create-note.ts
+│   │   ├── append-note.ts
+│   │   ├── delete-note.ts        # Soft delete (permanent=false) or hard delete
+│   │   ├── delete-folder.ts      # Soft delete with recursive option
+│   │   ├── batch-delete.ts       # Batch soft/permanent delete
+│   │   ├── restore-note.ts       # Restore from .trash/
+│   │   ├── list-trash.ts         # Browse .trash/ contents
+│   │   ├── move-note.ts
+│   │   ├── copy-note.ts
+│   │   ├── list-notes.ts         # Excludes .trash/
+│   │   ├── search-notes.ts       # Full-text + regex, excludes .trash/
+│   │   ├── search-by-name.ts
+│   │   ├── note-info.ts
+│   │   ├── create-folder.ts
+│   │   ├── rename-folder.ts
+│   │   ├── extract-tags.ts
+│   │   ├── extract-links.ts      # Wiki links [[...]] and markdown links
+│   │   ├── find-backlinks.ts
+│   │   ├── get-graph.ts          # Full knowledge graph (nodes+edges+tags), excludes .trash/
+│   │   ├── watch-changes.ts      # Returns detected external file changes
+│   │   ├── create-template.ts    # daily, meeting, project, idea templates
+│   │   ├── read-frontmatter.ts
+│   │   ├── write-frontmatter.ts
+│   │   ├── update-frontmatter.ts
+│   │   ├── vault-status.ts
+│   │   ├── batch-move.ts
+│   │   ├── tools.test.ts         # Original test suite
+│   │   └── tools-full.test.ts    # Expanded test suite (25+ cases)
+│   └── utils/
+│       ├── vault.ts              # Vault root resolution, path safety, initVault()
+│       ├── vault.test.ts
+│       ├── trash.ts              # moveToTrash, restoreFromTrash, isInTrash, listTrash
+│       ├── trash.test.ts         # Trash utility tests (10 cases)
+│       ├── watcher.ts            # VaultWatcher singleton, polling-based change detection
+│       ├── logger.ts             # Structured JSON logger
+│       ├── links.ts              # Link extraction utilities (wiki + markdown)
+│       └── frontmatter.ts        # YAML frontmatter parsing
+├── dist/                         # Compiled JS output (gitignored)
+├── assets/
+│   └── logo.png                  # Quill logo
+├── skills/
+│   └── note-graph.md             # /note-graph skill definition
+├── canvas/
+│   └── note-graph.canvas.tsx     # Knowledge graph canvas visualization
+├── .env.example                  # Environment variable documentation
+├── .prettierrc                   # Code formatting config
+├── .gitignore
+├── tsconfig.json
+├── package.json
+├── LICENSE                       # MIT
+├── README.md                     # This file
+└── CONTRIBUTING.md
+```
+
+### Development Commands
+
+```bash
+npm run build          # Compile TypeScript to dist/
+npm run dev            # Watch mode compilation
+npm start              # Run the server (node dist/index.js)
+npm test               # Run vitest (fails on exFAT — use NTFS or CI)
+npm run lint           # ESLint check
+npm run lint:fix       # ESLint auto-fix
+npm run format         # Prettier format
+npm run format:check   # Prettier check
+```
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `NOTES_VAULT_PATH` | Path to the markdown vault | (required via CLI arg or .env) |
+| `NOTES_WATCH_INTERVAL` | File watcher polling interval in ms | `5000` |
+| `LOG_LEVEL` | Logging level (debug/info/warn/error) | `info` |
+
+### Known Limitations
+
+- **vitest v4 on exFAT:** Native binding (`rolldown`) fails to load on exFAT filesystems. Tests compile with `tsc` but cannot execute. Run on NTFS or CI.
+- **No chokidar:** File watcher uses custom polling to avoid adding dependencies. Inherent latency vs native fs events.
+- **Single vault:** One vault per server instance. No multi-vault support.
+
+---
+
 ## Features
 
 - **Read** — read note contents by path
@@ -40,8 +196,8 @@ All paths are resolved relative to the configured vault root. Path traversal att
 ## Setup
 
 ```bash
-git clone https://github.com/Lito016/quill-mcp.git
-cd quill-mcp
+git clone https://github.com/Lito016/snapcheck.git
+cd snapcheck
 npm install
 npm run build
 ```
@@ -55,7 +211,7 @@ Add the server to your MCP client configuration and point it to your vault:
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/quill-mcp/dist/index.js", "D:/vault"]
+      "args": ["d:/notes-mcp/dist/index.js", "D:/vault"]
     }
   }
 }
@@ -70,7 +226,7 @@ Alternatively, use a `.env` file so you don't need the path in args (see [Config
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/quill-mcp/dist/index.js"]
+      "args": ["d:/notes-mcp/dist/index.js"]
     }
   }
 }
@@ -127,6 +283,8 @@ The `.env` approach is the most convenient — set it once and it works for any 
 - **@modelcontextprotocol/sdk** — MCP server SDK
 - **Zod** — runtime input validation
 - **dotenv** — `.env` file configuration support
+- **vitest** — test framework (v4)
+- **ESLint + Prettier** — linting and formatting
 
 ## License
 

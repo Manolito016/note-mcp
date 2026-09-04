@@ -1,7 +1,9 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, stat, lstat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { getVaultRoot } from "./vault.js";
 import { logger } from "./logger.js";
+import { knowledgeIndex } from "./knowledge-index.js";
+import { searchIndex } from "./search-index.js";
 
 interface FileSnapshot {
     mtime: number;
@@ -14,12 +16,16 @@ export interface FileChange {
     timestamp: string;
 }
 
+/** Maximum pending changes before dropping oldest entries. */
+const MAX_PENDING_CHANGES = 10_000;
+
 class VaultWatcher {
     private snapshots: Map<string, FileSnapshot> = new Map();
     private pendingChanges: FileChange[] = [];
     private intervalId: ReturnType<typeof setInterval> | null = null;
     private pollingInterval: number;
     private running = false;
+    private scanning = false;
 
     constructor() {
         const envInterval = parseInt(process.env.NOTES_WATCH_INTERVAL || "5000", 10);
@@ -97,12 +103,22 @@ class VaultWatcher {
         try {
             const entries = await readdir(dir, { withFileTypes: true });
             for (const entry of entries) {
-                if (entry.name === ".trash" || entry.name === "node_modules" || entry.name === ".git") continue;
+                if (
+                    entry.name === ".trash" ||
+                    entry.name === ".quill-sessions" ||
+                    entry.name === "node_modules" ||
+                    entry.name === ".git"
+                )
+                    continue;
 
                 const fullPath = join(dir, entry.name);
+                // Symlink defense: never recurse into symbolic links
+                const entryStat = await lstat(fullPath);
+                if (entryStat.isSymbolicLink()) continue;
+
                 if (entry.isDirectory()) {
                     await this.scanDirectory(fullPath);
-                } else if (entry.isFile() && entry.name.endsWith(".md")) {
+                } else if (entry.isFile()) {
                     try {
                         const s = await stat(fullPath);
                         const relPath = relative(getVaultRoot(), fullPath).replace(/\\/g, "/");
@@ -119,10 +135,26 @@ class VaultWatcher {
 
     /**
      * Detect changes by comparing current state with snapshots.
+     * Uses a scan lock to prevent overlapping polling scans.
      */
     private async detectChanges(): Promise<void> {
+        if (this.scanning) return; // Prevent overlapping scans
+        this.scanning = true;
+
+        try {
+            await this.performScan();
+        } finally {
+            this.scanning = false;
+        }
+    }
+
+    /**
+     * Perform the actual scan and update snapshots.
+     */
+    private async performScan(): Promise<void> {
         const vaultRoot = getVaultRoot();
         const currentFiles = new Map<string, FileSnapshot>();
+        const previousChangeCount = this.pendingChanges.length;
 
         // Scan current state
         await this.scanCurrentState(vaultRoot, currentFiles);
@@ -148,6 +180,17 @@ class VaultWatcher {
 
         // Update snapshots
         this.snapshots = currentFiles;
+        if (this.pendingChanges.length > previousChangeCount) {
+            knowledgeIndex.markDirty();
+            searchIndex.markDirty();
+        }
+
+        // Bound event accumulation: drop oldest changes if over limit
+        if (this.pendingChanges.length > MAX_PENDING_CHANGES) {
+            const dropped = this.pendingChanges.length - MAX_PENDING_CHANGES;
+            this.pendingChanges = this.pendingChanges.slice(dropped);
+            logger.warn("Watcher pending changes exceeded limit, dropped oldest", { dropped });
+        }
     }
 
     /**
@@ -157,12 +200,22 @@ class VaultWatcher {
         try {
             const entries = await readdir(dir, { withFileTypes: true });
             for (const entry of entries) {
-                if (entry.name === ".trash" || entry.name === "node_modules" || entry.name === ".git") continue;
+                if (
+                    entry.name === ".trash" ||
+                    entry.name === ".quill-sessions" ||
+                    entry.name === "node_modules" ||
+                    entry.name === ".git"
+                )
+                    continue;
 
                 const fullPath = join(dir, entry.name);
+                // Symlink defense: never recurse into symbolic links
+                const entryStat = await lstat(fullPath);
+                if (entryStat.isSymbolicLink()) continue;
+
                 if (entry.isDirectory()) {
                     await this.scanCurrentState(fullPath, result);
-                } else if (entry.isFile() && entry.name.endsWith(".md")) {
+                } else if (entry.isFile()) {
                     try {
                         const s = await stat(fullPath);
                         const relPath = relative(getVaultRoot(), fullPath).replace(/\\/g, "/");

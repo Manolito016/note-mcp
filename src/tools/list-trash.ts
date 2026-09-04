@@ -2,7 +2,8 @@ import { listTrash } from "../utils/trash.js";
 import * as z from "zod";
 
 export const name = "list_trash";
-export const description = "List all items currently in the trash (.trash/). Shows path and deletion time for each item.";
+export const description =
+    "List all items currently in the trash (.trash/). Shows path and deletion time for each item.";
 export const inputSchema = z.object({});
 
 export async function handler() {

@@ -8,10 +8,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: [18.x, 20.x, 22.x]
 
     steps:
@@ -35,8 +36,31 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run tests
-        run: npm run test
+      - name: Run unit tests
+        run: npm run test -- --run --reporter=verbose --reporter=json --outputFile=test-results-unit.json
+
+      - name: Run integration tests (adversarial suite)
+        run: npx vitest run --config vitest.integration.config.ts --reporter=verbose --reporter=json --outputFile=test-results-integration.json
+
+      - name: Run filesystem policy guard
+        run: node scripts/check-fs-policy.mjs
+
+      - name: Run coverage
+        run: npm run test:coverage -- --run
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+      - name: Upload test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: |
+            coverage/
+            test-results-unit.json
+            test-results-integration.json
+          retention-days: 14
 
   publish:
     needs: build

@@ -1,5 +1,6 @@
 /**
  * Parse YAML frontmatter from markdown content.
+ * Supports nested objects (one level), inline objects, arrays, and multi-line arrays.
  * Returns the frontmatter object and the content without frontmatter.
  */
 export function parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; content: string } {
@@ -16,15 +17,80 @@ export function parseFrontmatter(content: string): { frontmatter: Record<string,
     const frontmatter: Record<string, unknown> = {};
     const lines = frontmatterStr.split("\n");
 
-    for (const line of lines) {
-        const colonIndex = line.indexOf(":");
+    let currentKey = "";
+    let currentNested: Record<string, unknown> | null = null;
+    let currentArray: string[] | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Skip empty lines
+        if (!trimmed) continue;
+
+        // Check if this is a nested/indented line (starts with spaces)
+        const isIndented = line.startsWith("  ") || line.startsWith("\t");
+
+        // Multi-line array item: "  - value"
+        if (isIndented && trimmed.startsWith("- ") && currentKey) {
+            if (!currentArray) {
+                currentArray = [];
+            }
+            currentArray.push(parseValue(trimmed.slice(2).trim()) as string);
+            continue;
+        }
+
+        // Nested object property: "  key: value"
+        if (isIndented && currentKey && !trimmed.startsWith("- ")) {
+            const nestedColon = trimmed.indexOf(":");
+            if (nestedColon !== -1) {
+                if (!currentNested) {
+                    currentNested = {};
+                }
+                const nestedKey = trimmed.slice(0, nestedColon).trim();
+                const nestedValue = trimmed.slice(nestedColon + 1).trim();
+                currentNested[nestedKey] = parseValue(nestedValue);
+            }
+            continue;
+        }
+
+        // Flush any pending nested object or array
+        if (currentKey) {
+            if (currentNested) {
+                frontmatter[currentKey] = currentNested;
+                currentNested = null;
+            } else if (currentArray) {
+                frontmatter[currentKey] = currentArray;
+                currentArray = null;
+            }
+        }
+
+        // Top-level key: value
+        const colonIndex = trimmed.indexOf(":");
         if (colonIndex === -1) continue;
 
-        const key = line.slice(0, colonIndex).trim();
-        const value = line.slice(colonIndex + 1).trim();
+        currentKey = trimmed.slice(0, colonIndex).trim();
+        const value = trimmed.slice(colonIndex + 1).trim();
 
-        if (key) {
-            frontmatter[key] = parseValue(value);
+        if (value) {
+            // Inline object: {key: value, key2: value2}
+            if (value.startsWith("{") && value.endsWith("}")) {
+                frontmatter[currentKey] = parseInlineObject(value);
+                currentKey = "";
+            } else {
+                frontmatter[currentKey] = parseValue(value);
+                currentKey = "";
+            }
+        }
+        // else: value is on subsequent indented lines (nested object or array)
+    }
+
+    // Flush any remaining pending value
+    if (currentKey) {
+        if (currentNested) {
+            frontmatter[currentKey] = currentNested;
+        } else if (currentArray) {
+            frontmatter[currentKey] = currentArray;
         }
     }
 
@@ -41,12 +107,36 @@ function parseValue(value: string): unknown {
     if (/^-?\d+$/.test(value)) return parseInt(value, 10);
     if (/^-?\d+\.\d+$/.test(value)) return parseFloat(value);
     if (value.startsWith("[") && value.endsWith("]")) {
-        return value
-            .slice(1, -1)
-            .split(",")
-            .map((item) => parseValue(item.trim()));
+        const inner = value.slice(1, -1).trim();
+        if (!inner) return [];
+        return inner.split(",").map((item) => parseValue(item.trim()));
+    }
+    // Strip surrounding quotes if present
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        return value.slice(1, -1);
     }
     return value;
+}
+
+/**
+ * Parse an inline YAML object: {key: value, key2: value2}
+ */
+function parseInlineObject(value: string): Record<string, unknown> {
+    const inner = value.slice(1, -1).trim();
+    const result: Record<string, unknown> = {};
+    if (!inner) return result;
+
+    const pairs = inner.split(",");
+    for (const pair of pairs) {
+        const colonIdx = pair.indexOf(":");
+        if (colonIdx === -1) continue;
+        const key = pair.slice(0, colonIdx).trim();
+        const val = pair.slice(colonIdx + 1).trim();
+        if (key) {
+            result[key] = parseValue(val);
+        }
+    }
+    return result;
 }
 
 /**
@@ -67,14 +157,36 @@ export function extractTags(content: string): string[] {
 
 /**
  * Stringify frontmatter back to YAML format.
+ * Handles nested objects, arrays, and primitive values.
  */
 export function stringifyFrontmatter(frontmatter: Record<string, unknown>): string {
-    const lines = Object.entries(frontmatter).map(([key, value]) => {
-        if (Array.isArray(value)) {
-            return `${key}: [${value.join(", ")}]`;
+    const lines: string[] = [];
+
+    for (const [key, value] of Object.entries(frontmatter)) {
+        if (value === null || value === undefined) {
+            lines.push(`${key}: null`);
+        } else if (Array.isArray(value)) {
+            if (value.length === 0) {
+                lines.push(`${key}: []`);
+            } else if (value.length <= 3 && value.every((v) => typeof v !== "object")) {
+                lines.push(`${key}: [${value.join(", ")}]`);
+            } else {
+                lines.push(`${key}:`);
+                for (const item of value) {
+                    lines.push(`  - ${item}`);
+                }
+            }
+        } else if (typeof value === "object") {
+            lines.push(`${key}:`);
+            for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+                lines.push(`  ${nestedKey}: ${nestedValue}`);
+            }
+        } else if (typeof value === "boolean") {
+            lines.push(`${key}: ${value}`);
+        } else {
+            lines.push(`${key}: ${value}`);
         }
-        return `${key}: ${value}`;
-    });
+    }
 
     return `---\n${lines.join("\n")}\n---\n`;
 }

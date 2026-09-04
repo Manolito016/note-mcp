@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { initVault, resolveVaultPath, pathExists } from "../utils/vault.js";
+import { initVault, pathExists } from "../utils/vault.js";
 import { moveToTrash, restoreFromTrash, isInTrash, listTrash, getTrashPath } from "../utils/trash.js";
 
 const TEST_VAULT = join(process.cwd(), "test-vault-temp-trash");

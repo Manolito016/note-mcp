@@ -1,7 +1,8 @@
-import { resolveVaultPath, pathExists, getVaultRoot } from "../utils/vault.js";
-import { getTrashPath, restoreFromTrash, listTrash } from "../utils/trash.js";
-import { join } from "node:path";
+﻿import { getVaultRoot } from "../utils/vault.js";
+import { safeTrashSource, safeRestoreDestination, restoreFromTrash } from "../utils/trash.js";
+import { relative } from "node:path";
 import * as z from "zod";
+import { scheduleHiveRegen } from "./hive-auto-regen.js";
 
 export const name = "restore_note";
 export const description =
@@ -11,21 +12,20 @@ export const inputSchema = z.object({
 });
 
 export async function handler({ path }: { path: string }) {
-    const trashRoot = getTrashPath();
-    const trashItemPath = join(trashRoot, path);
+    // Validate the source path is safely inside .trash (traversal, symlink, absolute checks)
+    const trashItemPath = await safeTrashSource(path);
 
-    if (!(await pathExists(trashItemPath))) {
-        return {
-            content: [{ type: "text" as const, text: `Error: Item not found in trash at ".trash/${path}".` }],
-            isError: true,
-        };
-    }
+    // Validate the restore destination is safely inside the vault
+    await safeRestoreDestination(path);
 
+    // Perform the restore (restoreFromTrash also validates internally)
     const restoredPath = await restoreFromTrash(trashItemPath);
+
     const vaultRoot = getVaultRoot();
-    const relPath = restoredPath.startsWith(vaultRoot) ? restoredPath.slice(vaultRoot.length + 1) : restoredPath;
+    const relPath = relative(vaultRoot, restoredPath).replace(/\\/g, "/");
+    scheduleHiveRegen(relPath);
 
     return {
-        content: [{ type: "text" as const, text: `Restored ".trash/${path}" to "${relPath.replace(/\\/g, "/")}".` }],
+        content: [{ type: "text" as const, text: `Restored ".trash/${path}" to "${relPath}".` }],
     };
 }

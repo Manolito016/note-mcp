@@ -14,25 +14,23 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for man
 
 ### What This Is
 
-quill-mcp is a **stdio-based MCP server** written in TypeScript. It runs as a child process started by an MCP client (Qoder, Claude Desktop, etc.) and exposes **28 tools** for managing a local markdown vault. It is NOT a standalone app — it is always launched and managed by the host MCP client.
+quill-mcp is a **stdio-based MCP server** written in TypeScript. It runs as a child process started by an MCP client (Qoder, Claude Desktop, etc.) and exposes **49 tools** for managing a local markdown vault with a persistent memory intelligence layer. It is NOT a standalone app — it is always launched and managed by the host MCP client.
 
 ### GitHub
 
-- **Repo:** https://github.com/Lito016/snapcheck
+- **Repo:** https://github.com/Manolito016/quill-mcp
 - **License:** MIT
 
 ### Runtime Environment
 
-- **Node.js:** v22 LTS required (v24 has a silent crash bug on Windows — do NOT use)
-- **Node path:** `C:\Users\Admin\node-v22\node-v22.22.1-win-x64\node.exe`
-- **Project location:** `D:\notes-mcp`
-- **Vault location:** `D:\vault` (configurable)
-- **Filesystem:** exFAT (USB drive) — native `.node` bindings fail here, so vitest v4 cannot execute tests on this drive. Tests compile but must be validated on NTFS or CI.
+- **Node.js:** >= 18.0.0 (v22 LTS recommended; v24 has a silent crash bug on Windows — avoid)
+- **Vault location:** Configurable via CLI arg, env var, or config file (see Configuration section)
 
 ### Architecture
 
 ```
 Client (Qoder/Claude) ←stdio→ index.ts → tool handlers → vault filesystem
+                                      → memory intelligence layer (BM25, conflict detection, checkpoints)
 ```
 
 - **Transport:** stdio (JSON-RPC over stdin/stdout)
@@ -74,10 +72,10 @@ All tools are registered in `src/index.ts` via `registerTool()` which wraps each
 ### Project Structure
 
 ```
-d:\notes-mcp\
+d:\quill-mcp\
 ├── src/
 │   ├── index.ts                  # Entry point, server setup, tool registration
-│   ├── tools/                    # One file per MCP tool (28 tools)
+│   ├── tools/                    # One file per MCP tool (49 tools)
 │   │   ├── read-note.ts
 │   │   ├── write-note.ts
 │   │   ├── create-note.ts
@@ -97,26 +95,60 @@ d:\notes-mcp\
 │   │   ├── rename-folder.ts
 │   │   ├── extract-tags.ts
 │   │   ├── extract-links.ts      # Wiki links [[...]] and markdown links
+│   │   ├── extract-callouts.ts   # Obsidian callout parsing ([!type], foldable)
 │   │   ├── find-backlinks.ts
-│   │   ├── get-graph.ts          # Full knowledge graph (nodes+edges+tags), excludes .trash/
 │   │   ├── watch-changes.ts      # Returns detected external file changes
+│   │   ├── session-history.ts    # View session mutation history
 │   │   ├── create-template.ts    # daily, meeting, project, idea templates
 │   │   ├── read-frontmatter.ts
 │   │   ├── write-frontmatter.ts
 │   │   ├── update-frontmatter.ts
 │   │   ├── vault-status.ts
 │   │   ├── batch-move.ts
-│   │   ├── tools.test.ts         # Original test suite
-│   │   └── tools-full.test.ts    # Expanded test suite (25+ cases)
+│   │   ├── quill-write.ts        # Memory intelligence: write typed memory
+│   │   ├── quill-record-decision.ts
+│   │   ├── quill-record-lesson.ts
+│   │   ├── quill-record-discovery.ts
+│   │   ├── quill-retrieve.ts     # Smart BM25 retrieval
+│   │   ├── quill-recall.ts       # Quick project recall
+│   │   ├── quill-detect-conflicts.ts
+│   │   ├── quill-resolve-conflict.ts
+│   │   ├── quill-checkpoint.ts   # Context checkpoint
+│   │   ├── quill-restore.ts      # Context restoration
+│   │   ├── quill-consolidate.ts  # Memory consolidation
+│   │   ├── quill-audit.ts        # Audit log query
+│   │   ├── quill-session-start.ts
+│   │   ├── quill-session-end.ts
+│   │   ├── tools.test.ts         # Core tool test suite
+│   │   ├── tools-full.test.ts    # Expanded test suite (49 cases)
+│   │   └── stdio-integration.test.ts  # MCP stdio integration test
 │   └── utils/
 │       ├── vault.ts              # Vault root resolution, path safety, initVault()
 │       ├── vault.test.ts
 │       ├── trash.ts              # moveToTrash, restoreFromTrash, isInTrash, listTrash
 │       ├── trash.test.ts         # Trash utility tests (10 cases)
-│       ├── watcher.ts            # VaultWatcher singleton, polling-based change detection
+│       ├── watcher.ts            # VaultWatcher singleton, polling based change detection
+│       ├── graph.ts              # Graph engine: BFS, centrality, communities, orphans, bridges
 │       ├── logger.ts             # Structured JSON logger
 │       ├── links.ts              # Link extraction utilities (wiki + markdown)
-│       └── frontmatter.ts        # YAML frontmatter parsing
+│       ├── callouts.ts           # Obsidian callout parsing (13 types + aliases)
+│       ├── session-tracker.ts    # Session mutation tracking
+│       ├── tokens.ts             # Token estimation utilities
+│       ├── frontmatter.ts        # YAML frontmatter parsing (enhanced: nested objects, multi-line arrays)
+│       ├── memory-id.ts          # ULID generation (Crockford Base32, mem_ prefix)
+│       ├── memory-id.test.ts
+│       ├── memory-schema.ts      # Zod schemas, 16 memory types, 8 statuses, confidence
+│       ├── memory-schema.test.ts
+│       ├── lifecycle.ts          # State machine: valid transitions, resurrection prevention
+│       ├── lifecycle.test.ts
+│       ├── config.ts             # Config resolver (vault.config.json → env → defaults)
+│       ├── audit-log.ts          # Append-only JSON audit trail
+│       ├── metadata-index.ts     # In-memory cache, secondary indexes, BM25 inverted index
+│       ├── retrieval-engine.ts   # BM25 scoring, composite ranking, context budget modes
+│       ├── conflict-engine.ts    # Field-based conflict detection, resolution, supersession
+│       ├── checkpoint.ts         # Checkpoint create/restore for context reconstruction
+│       ├── consolidation.ts      # Jaccard duplicate detection, promotion, archival
+│       └── consolidation.test.ts
 ├── dist/                         # Compiled JS output (gitignored)
 ├── assets/
 │   └── logo.png                  # Quill logo
@@ -140,7 +172,7 @@ d:\notes-mcp\
 npm run build          # Compile TypeScript to dist/
 npm run dev            # Watch mode compilation
 npm start              # Run the server (node dist/index.js)
-npm test               # Run vitest (fails on exFAT — use NTFS or CI)
+npm test               # Run vitest
 npm run lint           # ESLint check
 npm run lint:fix       # ESLint auto-fix
 npm run format         # Prettier format
@@ -157,7 +189,6 @@ npm run format:check   # Prettier check
 
 ### Known Limitations
 
-- **vitest v4 on exFAT:** Native binding (`rolldown`) fails to load on exFAT filesystems. Tests compile with `tsc` but cannot execute. Run on NTFS or CI.
 - **No chokidar:** File watcher uses custom polling to avoid adding dependencies. Inherent latency vs native fs events.
 - **Single vault:** One vault per server instance. No multi-vault support.
 
@@ -185,20 +216,44 @@ npm run format:check   # Prettier check
 - **Frontmatter** — read and write YAML frontmatter in notes
 - **Batch Delete** — delete multiple notes at once (soft or permanent)
 - **Batch Move** — move multiple notes at once
-- **Knowledge Graph** — extract links, find backlinks, build full graph with nodes and edges
+- **Knowledge Graph** — extract links, find backlinks, discover orphans
+- **Extract Callouts** — parse Obsidian callout syntax from notes
+- **Session History** — track vault mutations across sessions
 - **File Watching** — detect external changes from other editors or tools
 - **Trash Management** — list and restore items from the trash
 - **Vault Status** — check if the vault is accessible and healthy
 
+### Memory Intelligence Layer
+
+quill-mcp includes a persistent memory intelligence layer that transforms the vault into an agent memory system:
+
+- **16 Memory Types** — FACT, DECISION, CONSTRAINT, ARCHITECTURE, LESSON, DISCOVERY, ERROR, SOLUTION, and more
+- **Lifecycle State Machine** — ACTIVE → CONFIRMED → ARCHIVED with transition validation and resurrection prevention
+- **BM25 Smart Retrieval** — keyword-ranked retrieval with metadata boosting (project match, importance, recency, confidence)
+- **Context Budget Modes** — compact (5 results), standard (20), deep (100) for token-aware retrieval
+- **Conflict Detection** — field-based detection of contradictory same-entity memories within a project
+- **Memory Consolidation** — Jaccard duplicate detection, importance promotion, obsolete archival
+- **Checkpoints** — structured markdown checkpoints for context reconstruction after compaction
+- **Audit Trail** — append-only JSON log of all memory mutations with rotation
+- **Secret Detection** — automatic scanning for API keys, tokens, and passwords before writes
+- **Project Isolation** — memories scoped by project with hard filtering
+- **ULID Identifiers** — time-sortable unique IDs (mem_ prefix, Crockford Base32)
+- **Zod Validation** — runtime schema validation for all memory frontmatter
+
 ## Security
 
-All paths are resolved relative to the configured vault root. Path traversal attacks are blocked — any attempt to access files outside the vault will be rejected.
+- **Path traversal defense:** All paths are resolved relative to the configured vault root. Any attempt to access files outside the vault is rejected.
+- **Symlink/junction defense:** Existing paths are verified via `realpath()` to prevent symlink escapes. Write destinations validate their deepest existing parent.
+- **Vault root protection:** No tool can delete, move, or overwrite the vault root itself.
+- **Protected directories:** Internal directories (`.trash`, `.git`, `.quill-sessions`, `node_modules`) cannot be targeted by delete/move/rename operations.
+- **Stdio isolation:** All diagnostic logging goes to stderr. Stdout contains JSON-RPC only, ensuring clean MCP communication.
+- **Crash protection:** Uncaught exceptions are logged and trigger a clean nonzero exit. Tool handler errors are caught and returned as MCP error responses.
 
 ## Setup
 
 ```bash
-git clone https://github.com/Lito016/snapcheck.git
-cd snapcheck
+git clone https://github.com/Manolito016/quill-mcp.git
+cd quill-mcp
 npm install
 npm run build
 ```
@@ -226,7 +281,7 @@ Then add the server to your MCP client config (no path in args needed):
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/notes-mcp/dist/index.js"]
+      "args": ["d:/quill-mcp/dist/index.js"]
     }
   }
 }
@@ -241,7 +296,7 @@ Add the server to your MCP client configuration and point it to your vault:
   "mcpServers": {
     "notes": {
       "command": "node",
-      "args": ["d:/notes-mcp/dist/index.js", "D:/vault"]
+      "args": ["d:/quill-mcp/dist/index.js", "D:/vault"]
     }
   }
 }
@@ -276,8 +331,13 @@ The **config file** approach is the simplest — just edit `vault.config.json` a
 | `copy_note` | Copy a note to a new location | `from`, `to` |
 | `rename_folder` | Rename a folder | `from`, `to` |
 | `list_notes` | List files in a directory | `path` (default `.`), `recursive` (default `false`), `limit`, `offset` |
-| `search_notes` | Full-text search with regex support | `query`, `path` (default `.`), `fileExtension` (default `.md`), `useRegex` (default `false`), `limit`, `offset` |
+| `search_notes` | Full-text search with regex support | `query`, `path` (default `.`), `fileExtension` (default `.md`), `useRegex` (default `false`), `limit`, `offset`, `showTokenEstimate` (default `false`) |
 | `search_by_name` | Search by filename pattern | `pattern`, `path` (default `.`), `recursive` (default `true`) |
+| `discover` | Ranked filename/path/metadata/heading/content discovery | `query`, `folder`, `limit`, `cursor`, `types`, `search_fields` |
+| `search_files` | Indexed filename/path substring or glob search | `pattern`, `folder`, `match`, `recursive`, `include_path_matches`, `limit`, `cursor` |
+| `search_by_tag` | YAML tag discovery with AND/OR matching | `tags`, `operator`, `folder`, `limit`, `cursor` |
+| `list_folder` | Bounded folder browsing with concise metadata | `folder`, `recursive`, `include_metadata`, `limit`, `cursor` |
+| `refresh_knowledge_index` | Explicitly rebuild the discovery catalog | none |
 | `extract_tags` | Extract hashtags from a note | `path` |
 | `read_frontmatter` | Read YAML frontmatter from a note | `path` |
 | `write_frontmatter` | Write YAML frontmatter to a note (replaces all) | `path`, `frontmatter` (object) |
@@ -289,11 +349,28 @@ The **config file** approach is the simplest — just edit `vault.config.json` a
 | `batch_move` | Move multiple notes at once | `moves` (array of `{from, to}`) |
 | `vault_status` | Check vault health and accessibility | (none) |
 | `extract_links` | Extract wiki and markdown links from a note | `path` |
-| `find_backlinks` | Find all notes linking to a target note | `target`, `path` (default `.`) |
-| `get_graph` | Build full knowledge graph (nodes + edges + tags) | `path` (default `.`), `includeTags` (default `true`) |
+| `find_backlinks` | Find all notes linking to a target note | `path` (note name without .md), `searchPath` (default `.`) |
+
 | `restore_note` | Restore a note from trash to original location | `path` (path inside .trash/) |
 | `list_trash` | List all items in the trash | (none) |
 | `watch_changes` | Check for external file changes since last poll | `clear` (default `true`) |
+
+| `session_history` | View session mutation history | `limit` (default `10`), `sessionId` (optional) |
+| `extract_callouts` | Extract Obsidian callouts from a note | `path` |
+| `quill_write` | Write a typed memory with frontmatter metadata | `path`, `content`, `type`, `project`, `confidence`, `importance`, `entity`, `source_type`, `source_reference`, `tags`, `related`, `supersedes`, `allow_secrets` |
+| `quill_record_decision` | Record a decision memory | `project`, `content`, `entity`, `source_type`, `source_reference`, `confidence`, `importance`, `tags` |
+| `quill_record_lesson` | Record a lesson learned | `project`, `content`, `entity`, `source_type`, `source_reference`, `confidence`, `importance`, `tags` |
+| `quill_record_discovery` | Record a discovery memory | `project`, `content`, `entity`, `source_type` (required), `source_reference`, `confidence`, `importance`, `tags` |
+| `quill_retrieve` | Smart retrieval with BM25 ranking | `query`, `project`, `mode` (compact/standard/deep), `type`, `tags`, `limit` |
+| `quill_recall` | Quick recall of top project memories | `project`, `limit` (default 10) |
+| `quill_detect_conflicts` | Detect contradictory memories | `project`, `type` |
+| `quill_resolve_conflict` | Resolve a conflict between memories | `memory_id_a`, `memory_id_b`, `action` (supersede/reject/manual_review), `keeper`, `reason`. Also supports `batch` mode for auto-resolving all conflicts. |
+| `quill_checkpoint` | Create a context checkpoint | `project`, `label`, `objective`, `current_state`, `known_problems`, `next_actions` |
+| `quill_restore` | Restore context from checkpoint | `project`, `mode` (compact/standard/deep), `label` |
+| `quill_consolidate` | Consolidate memories (merge/promote/archive) | `project`, `action` (merge_duplicates/promote_important/archive_obsolete), `confirm` |
+| `quill_audit` | Query the memory audit log | `memory_id`, `action`, `from`, `to`, `limit` (default 50) |
+| `quill_session_start` | Start a memory-aware session | `project`, `objective` |
+| `quill_session_end` | End the current session | `summary`, `next_actions` |
 
 ## Tech Stack
 

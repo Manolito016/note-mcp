@@ -1,18 +1,22 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolveVaultPath, pathExists } from "../utils/vault.js";
+import { extname } from "node:path";
+import { safeReadTarget, safeWriteTarget } from "../utils/vault.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import * as z from "zod";
 
 export const name = "read_frontmatter";
-export const description = "Read and parse YAML frontmatter from a note.";
+export const description =
+    "Read and parse YAML frontmatter from a note. Auto-appends .md if no file extension is provided.";
 export const inputSchema = z.object({
-    path: z.string().describe("Path to the note file, relative to the vault root"),
+    path: z.string().describe("Path to the note file, relative to the vault root (.md appended if no extension)"),
 });
 
 export async function handler({ path }: { path: string }) {
-    const fullPath = resolveVaultPath(path);
-
-    if (!(await pathExists(fullPath))) {
+    const resolvedPath = extname(path) ? path : `${path}.md`;
+    let fullPath: string;
+    try {
+        fullPath = await safeReadTarget(resolvedPath);
+    } catch {
         return { content: [{ type: "text" as const, text: `Error: Note not found at "${path}".` }], isError: true };
     }
 
@@ -24,23 +28,23 @@ export async function handler({ path }: { path: string }) {
     }
 
     return {
-        content: [{ type: "text" as const, text: `Frontmatter for "${path}":\n${JSON.stringify(frontmatter, null, 2)}` }],
+        content: [
+            { type: "text" as const, text: `Frontmatter for "${path}":\n${JSON.stringify(frontmatter, null, 2)}` },
+        ],
     };
 }
 
 export const name2 = "write_frontmatter";
-export const description2 = "Write or update YAML frontmatter in a note. Preserves existing content.";
+export const description2 =
+    "Write or update YAML frontmatter in a note. Preserves existing content. Auto-appends .md if no file extension is provided.";
 export const inputSchema2 = z.object({
-    path: z.string().describe("Path to the note file, relative to the vault root"),
+    path: z.string().describe("Path to the note file, relative to the vault root (.md appended if no extension)"),
     frontmatter: z.record(z.unknown()).describe("Frontmatter key-value pairs to write"),
 });
 
 export async function handler2({ path, frontmatter }: { path: string; frontmatter: Record<string, unknown> }) {
-    const fullPath = resolveVaultPath(path);
-
-    if (!(await pathExists(fullPath))) {
-        return { content: [{ type: "text" as const, text: `Error: Note not found at "${path}".` }], isError: true };
-    }
+    const resolvedPath = extname(path) ? path : `${path}.md`;
+    const fullPath = await safeWriteTarget(resolvedPath);
 
     const content = await readFile(fullPath, "utf-8");
     const { content: bodyContent } = parseFrontmatter(content);

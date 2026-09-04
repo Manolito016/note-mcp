@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolveVaultPath, pathExists } from "../utils/vault.js";
+import { pathExists, safeWriteTarget } from "../utils/vault.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { scheduleHiveRegen } from "./hive-auto-regen.js";
 import * as z from "zod";
 
 export const name = "update_frontmatter";
@@ -11,7 +12,7 @@ export const inputSchema = z.object({
 });
 
 export async function handler({ path, updates }: { path: string; updates: Record<string, unknown> }) {
-    const fullPath = resolveVaultPath(path);
+    const fullPath = await safeWriteTarget(path);
 
     if (!(await pathExists(fullPath))) {
         return { content: [{ type: "text" as const, text: `Error: Note not found at "${path}".` }], isError: true };
@@ -19,13 +20,21 @@ export async function handler({ path, updates }: { path: string; updates: Record
 
     const content = await readFile(fullPath, "utf-8");
     const { frontmatter: existingFrontmatter, content: bodyContent } = parseFrontmatter(content);
-    
+
     // Merge existing frontmatter with updates
     const mergedFrontmatter = { ...existingFrontmatter, ...updates };
     const newFrontmatter = stringifyFrontmatter(mergedFrontmatter);
     const newContent = newFrontmatter + bodyContent;
 
     await writeFile(fullPath, newContent, "utf-8");
+    scheduleHiveRegen(path);
 
-    return { content: [{ type: "text" as const, text: `Frontmatter updated in "${path}". ${Object.keys(updates).length} key(s) updated.` }] };
+    return {
+        content: [
+            {
+                type: "text" as const,
+                text: `Frontmatter updated in "${path}". ${Object.keys(updates).length} key(s) updated.`,
+            },
+        ],
+    };
 }

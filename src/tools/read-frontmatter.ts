@@ -1,18 +1,23 @@
 import { readFile } from "node:fs/promises";
-import { resolveVaultPath, pathExists } from "../utils/vault.js";
+import { extname } from "node:path";
+import { safeReadTarget } from "../utils/vault.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
 import * as z from "zod";
 
 export const name = "read_frontmatter";
-export const description = "Read and parse YAML frontmatter from a note.";
+export const description =
+    "Read and parse YAML frontmatter from a note. Auto-appends .md if no file extension is provided.";
 export const inputSchema = z.object({
-    path: z.string().describe("Path to the note file, relative to the vault root"),
+    path: z.string().describe("Path to the note file, relative to the vault root (.md appended if no extension)"),
 });
 
 export async function handler({ path }: { path: string }) {
-    const fullPath = resolveVaultPath(path);
-
-    if (!(await pathExists(fullPath))) {
+    // Auto-append .md if no file extension is present
+    const resolvedPath = extname(path) ? path : `${path}.md`;
+    let fullPath: string;
+    try {
+        fullPath = await safeReadTarget(resolvedPath);
+    } catch {
         return { content: [{ type: "text" as const, text: `Error: Note not found at "${path}".` }], isError: true };
     }
 
@@ -24,6 +29,8 @@ export async function handler({ path }: { path: string }) {
     }
 
     return {
-        content: [{ type: "text" as const, text: `Frontmatter for "${path}":\n${JSON.stringify(frontmatter, null, 2)}` }],
+        content: [
+            { type: "text" as const, text: `Frontmatter for "${path}":\n${JSON.stringify(frontmatter, null, 2)}` },
+        ],
     };
 }

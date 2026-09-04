@@ -1,7 +1,8 @@
-import { rename, mkdir } from "node:fs/promises";
+﻿import { rename, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { resolveVaultPath, pathExists, getPathStats } from "../utils/vault.js";
+import { pathExists, getPathStats, safeDeleteTarget, safeWriteTarget } from "../utils/vault.js";
 import * as z from "zod";
+import { scheduleHiveRegen } from "./hive-auto-regen.js";
 
 export const name = "rename_folder";
 export const description = "Rename a folder in the vault.";
@@ -11,8 +12,8 @@ export const inputSchema = z.object({
 });
 
 export async function handler({ from, to }: { from: string; to: string }) {
-    const srcPath = resolveVaultPath(from);
-    const destPath = resolveVaultPath(to);
+    const srcPath = await safeDeleteTarget(from);
+    const destPath = await safeWriteTarget(to);
 
     if (!(await pathExists(srcPath))) {
         return { content: [{ type: "text" as const, text: `Error: Folder not found at "${from}".` }], isError: true };
@@ -24,10 +25,14 @@ export async function handler({ from, to }: { from: string; to: string }) {
     }
 
     if (await pathExists(destPath)) {
-        return { content: [{ type: "text" as const, text: `Error: A folder already exists at "${to}".` }], isError: true };
+        return {
+            content: [{ type: "text" as const, text: `Error: A folder already exists at "${to}".` }],
+            isError: true,
+        };
     }
 
     await mkdir(dirname(destPath), { recursive: true });
     await rename(srcPath, destPath);
+    scheduleHiveRegen(to);
     return { content: [{ type: "text" as const, text: `Folder renamed from "${from}" to "${to}".` }] };
 }

@@ -29,15 +29,38 @@ import * as writeFrontmatter from "./tools/write-frontmatter.js";
 import * as updateFrontmatter from "./tools/update-frontmatter.js";
 import * as extractLinks from "./tools/extract-links.js";
 import * as findBacklinks from "./tools/find-backlinks.js";
-import * as getGraph from "./tools/get-graph.js";
 import * as restoreNote from "./tools/restore-note.js";
 import * as listTrash from "./tools/list-trash.js";
 import * as watchChanges from "./tools/watch-changes.js";
+import * as sessionHistory from "./tools/session-history.js";
+import * as extractCallouts from "./tools/extract-callouts.js";
+import * as quillWrite from "./tools/quill-write.js";
+import * as quillRecordDecision from "./tools/quill-record-decision.js";
+import * as quillRecordLesson from "./tools/quill-record-lesson.js";
+import * as quillRecordDiscovery from "./tools/quill-record-discovery.js";
+import * as quillRetrieve from "./tools/quill-retrieve.js";
+import * as quillRecall from "./tools/quill-recall.js";
+import * as quillDetectConflicts from "./tools/quill-detect-conflicts.js";
+import * as quillResolveConflict from "./tools/quill-resolve-conflict.js";
+import * as quillCheckpoint from "./tools/quill-checkpoint.js";
+import * as quillRestore from "./tools/quill-restore.js";
+import * as quillConsolidate from "./tools/quill-consolidate.js";
+import * as quillAudit from "./tools/quill-audit.js";
+import * as quillSessionStart from "./tools/quill-session-start.js";
+import * as quillSessionEnd from "./tools/quill-session-end.js";
+import * as generateHiveCanvas from "./tools/generate-hive-canvas.js";
+import * as discover from "./tools/discover.js";
+import * as searchFiles from "./tools/search-files.js";
+import * as searchByTag from "./tools/search-by-tag.js";
+import * as listFolder from "./tools/list-folder.js";
+import * as refreshKnowledgeIndex from "./tools/refresh-knowledge-index.js";
 import { vaultWatcher } from "./utils/watcher.js";
 
 // --- Crash protection (registered before anything else) ---
 process.on("uncaughtException", (err) => {
-    logger.error("Uncaught exception", { error: err.message, stack: err.stack });
+    logger.error("Uncaught exception — shutting down", { error: err.message, stack: err.stack });
+    // Give the logger time to flush, then exit nonzero
+    setTimeout(() => process.exit(1), 100);
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -78,9 +101,12 @@ const server = new McpServer({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function registerTool(name: string, description: string, inputSchema: z.ZodObject<any>, handler: AnyHandler) {
     server.registerTool(name, { description, inputSchema }, safeHandler(name, handler));
+    toolCount++;
 }
 
-// --- Register all 28 tools ---
+let toolCount = 0;
+
+// --- Register all tools ---
 registerTool(readNote.name, readNote.description, readNote.inputSchema, readNote.handler);
 registerTool(writeNote.name, writeNote.description, writeNote.inputSchema, writeNote.handler);
 registerTool(createNote.name, createNote.description, createNote.inputSchema, createNote.handler);
@@ -101,20 +127,102 @@ registerTool(extractTags.name, extractTags.description, extractTags.inputSchema,
 registerTool(searchByName.name, searchByName.description, searchByName.inputSchema, searchByName.handler);
 registerTool(createTemplate.name, createTemplate.description, createTemplate.inputSchema, createTemplate.handler);
 registerTool(readFrontmatter.name, readFrontmatter.description, readFrontmatter.inputSchema, readFrontmatter.handler);
-registerTool(writeFrontmatter.name, writeFrontmatter.description, writeFrontmatter.inputSchema, writeFrontmatter.handler);
-registerTool(updateFrontmatter.name, updateFrontmatter.description, updateFrontmatter.inputSchema, updateFrontmatter.handler);
+registerTool(
+    writeFrontmatter.name,
+    writeFrontmatter.description,
+    writeFrontmatter.inputSchema,
+    writeFrontmatter.handler,
+);
+registerTool(
+    updateFrontmatter.name,
+    updateFrontmatter.description,
+    updateFrontmatter.inputSchema,
+    updateFrontmatter.handler,
+);
 registerTool(extractLinks.name, extractLinks.description, extractLinks.inputSchema, extractLinks.handler);
 registerTool(findBacklinks.name, findBacklinks.description, findBacklinks.inputSchema, findBacklinks.handler);
-registerTool(getGraph.name, getGraph.description, getGraph.inputSchema, getGraph.handler);
 registerTool(restoreNote.name, restoreNote.description, restoreNote.inputSchema, restoreNote.handler);
 registerTool(listTrash.name, listTrash.description, listTrash.inputSchema, listTrash.handler);
 registerTool(watchChanges.name, watchChanges.description, watchChanges.inputSchema, watchChanges.handler);
+registerTool(sessionHistory.name, sessionHistory.description, sessionHistory.inputSchema, sessionHistory.handler);
+registerTool(extractCallouts.name, extractCallouts.description, extractCallouts.inputSchema, extractCallouts.handler);
+
+// --- Memory Intelligence Tools ---
+registerTool(quillWrite.name, quillWrite.description, quillWrite.inputSchema, quillWrite.handler);
+registerTool(
+    quillRecordDecision.name,
+    quillRecordDecision.description,
+    quillRecordDecision.inputSchema,
+    quillRecordDecision.handler,
+);
+registerTool(
+    quillRecordLesson.name,
+    quillRecordLesson.description,
+    quillRecordLesson.inputSchema,
+    quillRecordLesson.handler,
+);
+registerTool(
+    quillRecordDiscovery.name,
+    quillRecordDiscovery.description,
+    quillRecordDiscovery.inputSchema,
+    quillRecordDiscovery.handler,
+);
+registerTool(quillRetrieve.name, quillRetrieve.description, quillRetrieve.inputSchema, quillRetrieve.handler);
+registerTool(quillRecall.name, quillRecall.description, quillRecall.inputSchema, quillRecall.handler);
+registerTool(
+    quillDetectConflicts.name,
+    quillDetectConflicts.description,
+    quillDetectConflicts.inputSchema,
+    quillDetectConflicts.handler,
+);
+registerTool(
+    quillResolveConflict.name,
+    quillResolveConflict.description,
+    quillResolveConflict.inputSchema,
+    quillResolveConflict.handler,
+);
+registerTool(quillCheckpoint.name, quillCheckpoint.description, quillCheckpoint.inputSchema, quillCheckpoint.handler);
+registerTool(quillRestore.name, quillRestore.description, quillRestore.inputSchema, quillRestore.handler);
+registerTool(
+    quillConsolidate.name,
+    quillConsolidate.description,
+    quillConsolidate.inputSchema,
+    quillConsolidate.handler,
+);
+registerTool(quillAudit.name, quillAudit.description, quillAudit.inputSchema, quillAudit.handler);
+registerTool(
+    quillSessionStart.name,
+    quillSessionStart.description,
+    quillSessionStart.inputSchema,
+    quillSessionStart.handler,
+);
+registerTool(quillSessionEnd.name, quillSessionEnd.description, quillSessionEnd.inputSchema, quillSessionEnd.handler);
+
+// --- Hive Canvas Generation ---
+registerTool(
+    generateHiveCanvas.name,
+    generateHiveCanvas.description,
+    generateHiveCanvas.inputSchema,
+    generateHiveCanvas.handler,
+);
+
+// --- Unified Knowledge Discovery ---
+registerTool(discover.name, discover.description, discover.inputSchema, discover.handler);
+registerTool(searchFiles.name, searchFiles.description, searchFiles.inputSchema, searchFiles.handler);
+registerTool(searchByTag.name, searchByTag.description, searchByTag.inputSchema, searchByTag.handler);
+registerTool(listFolder.name, listFolder.description, listFolder.inputSchema, listFolder.handler);
+registerTool(
+    refreshKnowledgeIndex.name,
+    refreshKnowledgeIndex.description,
+    refreshKnowledgeIndex.inputSchema,
+    refreshKnowledgeIndex.handler,
+);
 
 // --- Main ---
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info(`quill-mcp server running`, { vault: vaultPath, tools: 28 });
+    logger.info(`quill-mcp server running`, { vault: vaultPath, tools: toolCount });
 
     // Initialize file watcher for external change detection
     await vaultWatcher.initialize();

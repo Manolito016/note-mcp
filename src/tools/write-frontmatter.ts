@@ -1,7 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { resolveVaultPath, pathExists } from "../utils/vault.js";
+﻿import { readFile, writeFile } from "node:fs/promises";
+import { pathExists, safeWriteTarget } from "../utils/vault.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import * as z from "zod";
+import { scheduleHiveRegen } from "./hive-auto-regen.js";
 
 export const name = "write_frontmatter";
 export const description = "Write or update YAML frontmatter in a note. Preserves existing content.";
@@ -11,7 +12,7 @@ export const inputSchema = z.object({
 });
 
 export async function handler({ path, frontmatter }: { path: string; frontmatter: Record<string, unknown> }) {
-    const fullPath = resolveVaultPath(path);
+    const fullPath = await safeWriteTarget(path);
 
     if (!(await pathExists(fullPath))) {
         return { content: [{ type: "text" as const, text: `Error: Note not found at "${path}".` }], isError: true };
@@ -24,5 +25,6 @@ export async function handler({ path, frontmatter }: { path: string; frontmatter
 
     await writeFile(fullPath, newContent, "utf-8");
 
+    scheduleHiveRegen(path);
     return { content: [{ type: "text" as const, text: `Frontmatter updated in "${path}".` }] };
 }

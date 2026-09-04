@@ -55,6 +55,7 @@ import * as searchByTag from "./tools/search-by-tag.js";
 import * as listFolder from "./tools/list-folder.js";
 import * as refreshKnowledgeIndex from "./tools/refresh-knowledge-index.js";
 import { vaultWatcher } from "./utils/watcher.js";
+import { classifyError } from "./utils/errors.js";
 
 // --- Crash protection (registered before anything else) ---
 process.on("uncaughtException", (err) => {
@@ -69,7 +70,8 @@ process.on("unhandledRejection", (reason) => {
 
 // --- Safe handler wrapper ---
 // Prevents any tool handler from crashing the server process.
-// Catches unexpected errors and returns them as MCP error responses.
+// Catches unexpected errors and returns them as MCP error responses
+// with structured error data for programmatic client handling.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyHandler = (...args: any[]) => any;
 
@@ -78,10 +80,10 @@ function safeHandler<H extends AnyHandler>(name: string, handler: H): H {
         try {
             return await handler(...args);
         } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.error(`Tool "${name}" failed`, { error: message });
+            const classified = classifyError(err);
+            logger.error(`Tool "${name}" failed`, { error: classified.message, code: classified.code });
             return {
-                content: [{ type: "text" as const, text: `Error in ${name}: ${message}` }],
+                content: [{ type: "text" as const, text: `Error in ${name}: ${classified.message}` }],
                 isError: true,
             };
         }

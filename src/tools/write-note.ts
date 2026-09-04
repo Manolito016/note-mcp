@@ -3,6 +3,7 @@ import { dirname, extname } from "node:path";
 import { pathExists, safeWriteTarget } from "../utils/vault.js";
 import { recordMutation } from "../utils/session-tracker.js";
 import { scheduleHiveRegen } from "./hive-auto-regen.js";
+import { validateContentSize } from "../utils/errors.js";
 import * as z from "zod";
 
 export const name = "write_note";
@@ -35,6 +36,12 @@ export async function handler({
     create_if_missing: boolean;
     expected_modified?: string;
 }) {
+    // Validate content size before any filesystem operations
+    const sizeError = validateContentSize(content);
+    if (sizeError) {
+        return { content: [{ type: "text" as const, text: `Error: ${sizeError.message}` }], isError: true };
+    }
+
     // Auto-append .md if no file extension is present
     const resolvedPath = extname(path) ? path : `${path}.md`;
     const fullPath = await safeWriteTarget(resolvedPath);

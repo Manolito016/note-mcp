@@ -2,6 +2,7 @@ import { resolveVaultPath, pathExists, getVaultRoot } from "../utils/vault.js";
 import { estimateTokens, formatTokenEstimate } from "../utils/tokens.js";
 import { searchIndex, type IndexedDocument } from "../utils/search-index.js";
 import { fuzzyMatch, parseSearchOperators, highlightMatches, type ParsedQuery } from "../utils/fuzzy-search.js";
+import { MAX_PAGINATION_LIMIT, MAX_QUERY_LENGTH } from "../utils/errors.js";
 import * as z from "zod";
 
 export const name = "search_notes";
@@ -16,6 +17,7 @@ export const description = [
 export const inputSchema = z.object({
     query: z
         .string()
+        .max(MAX_QUERY_LENGTH)
         .describe(
             'Text to search for. Supports operators: "exact phrase", tag:value, path:value, -exclude. ' +
                 "Multi-word queries match all words (AND logic). Use useRegex=true for raw pattern matching.",
@@ -47,7 +49,7 @@ export const inputSchema = z.object({
         .boolean()
         .default(false)
         .describe("If true, treat query terms as glob patterns (* = any chars, ? = single char) for content matching."),
-    limit: z.number().optional().describe("Maximum number of results to return"),
+    limit: z.number().max(MAX_PAGINATION_LIMIT).optional().describe(`Maximum number of results to return (max ${MAX_PAGINATION_LIMIT})`),
     offset: z.number().default(0).describe("Number of results to skip (for pagination)"),
     showTokenEstimate: z.boolean().default(false).describe("Append estimated token count to results (default: false)"),
 });
@@ -241,14 +243,26 @@ export async function handler({
     const allDocs = searchIndex.getDocuments();
     const vaultRoot = getVaultRoot();
 
-    for (const doc of allDocs) {
-        // Verify file still exists on disk (index may be stale after deletes/moves)
-        const fullPath = `${vaultRoot}/${doc.path}`;
-        if (!(await pathExists(fullPath))) continue;
+    // Inverted-index candidate filtering: only scan documents that contain
+    // at least one query term. Falls back to all docs for regex, wildcard,
+    // fuzzy, and phrase-only queries where the inverted index cannot help.
+    const useInverted = !useRegex && !wildcard && !fuzzy && !parsed?.hasOperators && queryTokens.length > 0;
+    let docsToSearch: IndexedDocument[];
+    if (useInverted) {
+        const inverted = searchIndex.getInvertedIndex();
+        const candidatePaths = new Set<string>();
+        for (const token of queryTokens) {
+            const posting = inverted.get(token);
+            if (posting) {
+                for (const p of posting) candidatePaths.add(p);
+            }
+        }
+        docsToSearch = allDocs.filter((d) => candidatePaths.has(d.path));
+    } else {
+        docsToSearch = allDocs;
+    }
 
-        // Skip anything in .trash
-        if (doc.path.includes(".trash/")) continue;
-
+    for (const doc of docsToSearch) {
         // Path restriction
         if (!doc.path.startsWith(path === "." ? "" : path.replace(/\/$/, ""))) continue;
 
@@ -257,6 +271,13 @@ export async function handler({
 
         // Frontmatter gate
         if (!passesFrontmatter(doc)) continue;
+
+        // Verify file still exists on disk (index may be stale after deletes/moves)
+        const fullPath = `${vaultRoot}/${doc.path}`;
+        if (!(await pathExists(fullPath))) continue;
+
+        // Skip anything in .trash
+        if (doc.path.includes(".trash/")) continue;
 
         // Per-file match count for dedup
         let fileMatchCount = 0;

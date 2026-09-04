@@ -62,6 +62,48 @@ export function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number 
     return union.size > 0 ? intersection.size / union.size : 0;
 }
 
+/**
+ * Normalize text for comparison: lowercase, strip markdown/punctuation,
+ * remove stopwords, and generate word bigrams for better phrase detection.
+ * Returns a set of tokens suitable for Jaccard comparison.
+ */
+export function normalizeToTokens(text: string): Set<string> {
+    const STOPWORDS = new Set([
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "shall", "can", "need", "dare", "ought",
+        "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+        "as", "into", "through", "during", "before", "after", "above",
+        "below", "between", "out", "off", "over", "under", "again",
+        "further", "then", "once", "and", "but", "or", "nor", "not", "so",
+        "yet", "both", "either", "neither", "here", "there", "when", "where",
+        "why", "how", "all", "each", "every", "that", "this", "these",
+        "those", "it", "its", "my", "your", "our", "their", "he", "she",
+        "they", "we", "you", "i", "me", "him", "her", "us", "them",
+    ]);
+
+    // Strip markdown, code blocks, YAML frontmatter markers
+    const cleaned = text
+        .replace(/^---[\s\S]*?---/m, "") // frontmatter
+        .replace(/```[\s\S]*?```/g, "") // code blocks
+        .replace(/`[^`]*`/g, "") // inline code
+        .replace(/[#*_>~\[\]()!|]/g, " ") // markdown syntax
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+    const words = cleaned
+        .split(/\s+/)
+        .filter((w) => w.length > 1 && !STOPWORDS.has(w));
+
+    // Generate unigrams + bigrams for phrase-aware comparison
+    const tokens = new Set<string>(words);
+    for (let i = 0; i < words.length - 1; i++) {
+        tokens.add(`${words[i]} ${words[i + 1]}`);
+    }
+    return tokens;
+}
+
 // === INTERNAL ===
 
 async function mergeDuplicates(project: string, confirm: boolean): Promise<ConsolidationResult> {
@@ -90,8 +132,8 @@ async function mergeDuplicates(project: string, confirm: boolean): Promise<Conso
     for (const [, group] of byType) {
         for (let i = 0; i < group.length; i++) {
             for (let j = i + 1; j < group.length; j++) {
-                const wordsA = new Set(group[i].contentPreview.toLowerCase().split(/\s+/));
-                const wordsB = new Set(group[j].contentPreview.toLowerCase().split(/\s+/));
+                const wordsA = normalizeToTokens(group[i].contentPreview);
+                const wordsB = normalizeToTokens(group[j].contentPreview);
                 const similarity = jaccardSimilarity(wordsA, wordsB);
 
                 if (similarity >= threshold) {

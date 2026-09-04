@@ -1,5 +1,6 @@
 import { readdir, stat, lstat } from "node:fs/promises";
 import { resolveVaultPath, pathExists } from "../utils/vault.js";
+import { MAX_PAGINATION_LIMIT } from "../utils/errors.js";
 import * as z from "zod";
 
 export const name = "list_notes";
@@ -9,7 +10,7 @@ export const description =
 export const inputSchema = z.object({
     path: z.string().default(".").describe("Directory path relative to the vault root (default: root)"),
     recursive: z.boolean().default(false).describe("If true, list all files recursively"),
-    limit: z.number().optional().describe("Maximum number of entries to return"),
+    limit: z.number().max(MAX_PAGINATION_LIMIT).optional().describe(`Maximum number of entries to return (max ${MAX_PAGINATION_LIMIT})`),
     offset: z.number().default(0).describe("Number of entries to skip (for pagination)"),
     sort: z
         .enum(["name_asc", "name_desc", "date_asc", "date_desc", "size_asc", "size_desc"])

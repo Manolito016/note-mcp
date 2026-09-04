@@ -2,6 +2,7 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { pathExists, safeWriteTarget } from "../utils/vault.js";
 import { scheduleHiveRegen } from "./hive-auto-regen.js";
+import { validateContentSize } from "../utils/errors.js";
 import * as z from "zod";
 
 export const name = "append_note";
@@ -38,6 +39,12 @@ export async function handler({
     before_heading?: string;
     auto_newline: boolean;
 }) {
+    // Validate content size
+    const sizeError = validateContentSize(content);
+    if (sizeError) {
+        return { content: [{ type: "text" as const, text: `Error: ${sizeError.message}` }], isError: true };
+    }
+
     // Auto-append .md if no file extension is present
     const resolvedPath = extname(path) ? path : `${path}.md`;
     const fullPath = await safeWriteTarget(resolvedPath);

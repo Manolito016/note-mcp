@@ -1,6 +1,7 @@
 ﻿import { rename, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { pathExists, safeDeleteTarget, safeWriteTarget } from "../utils/vault.js";
+import { validateBatchSize } from "../utils/errors.js";
 import * as z from "zod";
 import { scheduleHiveRegen } from "./hive-auto-regen.js";
 
@@ -20,6 +21,12 @@ export const inputSchema = z.object({
 });
 
 export async function handler({ moves, dry_run }: { moves: { from: string; to: string }[]; dry_run: boolean }) {
+    // Validate batch size
+    const batchSizeError = validateBatchSize(moves);
+    if (batchSizeError) {
+        return { content: [{ type: "text" as const, text: `Error: ${batchSizeError.message}` }], isError: true };
+    }
+
     const results: { from: string; to: string; success: boolean; message: string }[] = [];
 
     for (const { from, to } of moves) {

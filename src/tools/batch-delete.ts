@@ -1,6 +1,7 @@
 ﻿import { unlink } from "node:fs/promises";
 import { pathExists, safeDeleteTarget } from "../utils/vault.js";
 import { moveToTrash } from "../utils/trash.js";
+import { validateBatchSize } from "../utils/errors.js";
 import * as z from "zod";
 import { scheduleHiveRegen } from "./hive-auto-regen.js";
 
@@ -26,6 +27,12 @@ export async function handler({
     permanent: boolean;
     dry_run: boolean;
 }) {
+    // Validate batch size
+    const batchSizeError = validateBatchSize(paths);
+    if (batchSizeError) {
+        return { content: [{ type: "text" as const, text: `Error: ${batchSizeError.message}` }], isError: true };
+    }
+
     const results: { path: string; success: boolean; message: string }[] = [];
 
     for (const path of paths) {

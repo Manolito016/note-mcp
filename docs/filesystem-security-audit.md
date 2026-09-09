@@ -138,7 +138,7 @@ Every tool handler resolves paths through the centralized contract before any fi
 | `list-notes.ts` | `readdir`, `stat`, `lstat` | `resolveVaultPath()` | Vault root | `lstat()` inline in `listDir()` | Adversarial read-escape test |
 | `search-by-name.ts` | `readdir`, `lstat` | `resolveVaultPath()` | Vault root | `lstat()` inline in `searchDir()` | Adversarial read-escape test |
 | `vault-status.ts` | `readdir`, `stat`, `lstat` | `getVaultRoot()` | Vault root | `lstat()` inline in all 4 scanners | Adversarial symlink test |
-| `generate-hive-canvas.ts` | `readFile`, `writeFile`, `mkdir` | `safeWriteTarget()` (output), `resolveVaultPath()` (scan) | Vault root | `lstat()` via `scanVaultNotes()` + `safeWriteTarget()` | Adversarial canvas output + scan tests |
+| `generate-hive-canvas.ts` | `readFile`, `writeFile`, `mkdir`, `stat` | `safeWriteTarget()` (output), `resolveVaultPath()` (scan) | Vault root | `lstat()` via `scanVaultNotes()`, single-file scans stay under resolved vault path, output via `safeWriteTarget()` | Adversarial canvas output + scan tests |
 | `create-template.ts` | `writeFile`, `mkdir` | `safeWriteTarget()` | Vault root + protected | `realpath()` canonical | Unit tests |
 | `update-frontmatter.ts` | `readFile`, `writeFile` | `safeWriteTarget()` | Vault root + protected | `realpath()` canonical | Unit tests |
 | `frontmatter.ts` | `readFile`, `writeFile` | `safeReadTarget()` (read), `safeWriteTarget()` (write) | Vault root | `realpath()` canonical | Adversarial read-escape test |

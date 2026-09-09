@@ -1,9 +1,10 @@
 ﻿import { resolveVaultPath, pathExists, getVaultRoot, safeWriteTarget } from "../utils/vault.js";
 import { scanVaultNotes, VaultNode, VaultEdge } from "../utils/graph.js";
-import { parseFrontmatter } from "../utils/frontmatter.js";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { extractTags, parseFrontmatter } from "../utils/frontmatter.js";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractLinks } from "../utils/links.js";
 import * as z from "zod";
 
 export const name = "generate_hive_canvas";
@@ -17,8 +18,10 @@ export const inputSchema = z.object({
         .describe("Output path for the canvas JSON, relative to vault root (default: canvases/hive.canvas.json)"),
     scan_path: z
         .string()
-        .default("plugin,knowledge")
-        .describe("Comma-separated directories to scan, relative to vault root (default: plugin,knowledge)"),
+        .default("README.md,knowledge,notes,memories,projects,solutions")
+        .describe(
+            "Comma-separated files or directories to scan, relative to vault root (default: README.md,knowledge,notes,memories,projects,solutions)",
+        ),
     include_references: z
         .boolean()
         .default(false)
@@ -140,9 +143,31 @@ function shortName(name: string): string {
 }
 
 function titleCase(slug: string): string {
+    // Handle common acronyms
+    const acronyms = new Set([
+        "ai",
+        "ml",
+        "baas",
+        "cli",
+        "ui",
+        "ux",
+        "api",
+        "css",
+        "html",
+        "js",
+        "ts",
+        "db",
+        "saas",
+        "crm",
+        "erp",
+    ]);
     return slug
         .split(/[-_]/)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .map((w) => {
+            const lower = w.toLowerCase();
+            if (acronyms.has(lower)) return lower.toUpperCase();
+            return w.charAt(0).toUpperCase() + w.slice(1);
+        })
         .join(" ");
 }
 
@@ -188,6 +213,10 @@ function classifyNote(
     _notePath: string,
     skillDirectories: Set<string>,
 ): { kind: CanvasNode["kind"]; group: string; skillName: string } | null {
+    if (noteId === "README") {
+        return { kind: "core", group: "core", skillName: "vault" };
+    }
+
     // Core: HIVE-MIND.md
     if (noteId === "plugin/HIVE-MIND") {
         return { kind: "core", group: "core", skillName: "hive-mind" };
@@ -198,8 +227,13 @@ function classifyNote(
         return null;
     }
 
-    // Must be under plugin/ or knowledge/
-    if (!noteId.startsWith("plugin/") && !noteId.startsWith("knowledge/")) return null;
+    // Notes directory: decisions, evaluations, changelog
+    if (noteId.startsWith("notes/")) {
+        const parts = noteId.split("/");
+        const subFolder = parts.length > 1 ? parts[1] : "general";
+        const fileName = parts[parts.length - 1];
+        return { kind: "reference" as const, group: `notes-${subFolder}`, skillName: fileName };
+    }
 
     // Knowledge directory notes
     if (noteId.startsWith("knowledge/")) {
@@ -207,10 +241,35 @@ function classifyNote(
         return { kind: "reference" as const, group: "knowledge", skillName: fileName };
     }
 
+    if (noteId.startsWith("solutions/")) {
+        const fileName = noteId.split("/").pop() ?? noteId;
+        return { kind: "reference" as const, group: "solutions", skillName: fileName };
+    }
+
+    if (noteId.startsWith("projects/")) {
+        const parts = noteId.split("/");
+        return { kind: "reference" as const, group: "projects", skillName: parts.slice(1).join("-") };
+    }
+
+    if (noteId.startsWith("memories/")) {
+        const parts = noteId.split("/");
+        const subFolder = parts.length > 1 ? parts[1] : "general";
+        const fileName = parts[parts.length - 1];
+        return { kind: "reference" as const, group: `memories-${subFolder}`, skillName: fileName };
+    }
+
+    // Remaining skill/domain classification is legacy-compatible and only used
+    // when callers explicitly include plugin/ in scan_path.
+    if (!noteId.startsWith("plugin/")) return null;
+
     const parts = noteId.split("/");
     if (parts.length < 2) return null;
 
     const skillDir = parts[1];
+
+    // Skip standalone files in plugin root (not in subdirectories)
+    if (parts.length === 2 && skillDir.includes(" ")) return null;
+
     skillDirectories.add(skillDir);
 
     const fileName = parts[parts.length - 1];
@@ -237,11 +296,26 @@ interface EdgeNodeClass {
     skillName: string;
 }
 
+/* ── agent file → agent key lookup (inverse of AGENT_MAP) ───────── */
+
+const AGENT_FILE_MAP: Record<string, string> = {};
+for (const [agentKey, info] of Object.entries(AGENT_MAP)) {
+    const fileStub = info.path.replace("plugin/prime-orchestrator/", "").replace(/\.md$/, "");
+    AGENT_FILE_MAP[fileStub] = agentKey;
+}
+
 function classifyEdgeNode(
     edgeTarget: string,
     nodes: { id: string; path: string }[],
     skillDirectories: Set<string>,
 ): EdgeNodeClass | null {
+    // Check if edge target references a known agent file
+    for (const [fileStub, agentKey] of Object.entries(AGENT_FILE_MAP)) {
+        if (edgeTarget.includes(fileStub)) {
+            return { kind: "agent" as const, group: "prime", skillName: agentKey };
+        }
+    }
+
     const exactNode = nodes.find((n) => n.id === edgeTarget);
     if (exactNode) {
         const result = classifyNote(exactNode.id, exactNode.path, skillDirectories);
@@ -262,11 +336,34 @@ function classifyEdgeNode(
     return null;
 }
 
+async function scanSingleNote(fullPath: string): Promise<{ node: VaultNode; edges: VaultEdge[] }> {
+    const content = await readFile(fullPath, "utf-8");
+    const relPath = relative(getVaultRoot(), fullPath).replace(/\\/g, "/");
+    const nodeId = relPath.replace(/\.md$/, "");
+    const node: VaultNode = { id: nodeId, path: relPath, tags: extractTags(content) };
+    const links = extractLinks(content);
+    const edges: VaultEdge[] = [
+        ...links.wiki.map((link) => ({
+            from: nodeId,
+            to: link.target,
+            type: "wiki" as const,
+            confidence: "EXTRACTED" as const,
+        })),
+        ...links.markdown.map((link) => ({
+            from: nodeId,
+            to: link.target.replace(/\.md$/, "").replace(/#.*$/, ""),
+            type: "markdown" as const,
+            confidence: "EXTRACTED" as const,
+        })),
+    ];
+    return { node, edges };
+}
+
 /* ── core generation (exported for auto-regen) ───────────────── */
 
 export async function generateCanvas(
     outputPath = "canvases/hive.canvas.json",
-    scanPath = "plugin,knowledge",
+    scanPath = "README.md,knowledge,notes,memories,projects,solutions",
     includeReferences = false,
 ): Promise<{ nodes: number; links: number; warnings: number; groups: number }> {
     // Support scanning multiple directories
@@ -280,9 +377,16 @@ export async function generateCanvas(
     for (const sp of scanPaths) {
         const scanDir = resolveVaultPath(sp);
         if (!(await pathExists(scanDir))) continue;
-        const { nodes, edges } = await scanVaultNotes(scanDir);
-        allNodes = allNodes.concat(nodes);
-        allEdges = allEdges.concat(edges);
+        const s = await stat(scanDir);
+        if (s.isDirectory()) {
+            const { nodes, edges } = await scanVaultNotes(scanDir);
+            allNodes = allNodes.concat(nodes);
+            allEdges = allEdges.concat(edges);
+        } else if (s.isFile() && scanDir.endsWith(".md")) {
+            const { node, edges } = await scanSingleNote(scanDir);
+            allNodes.push(node);
+            allEdges = allEdges.concat(edges);
+        }
     }
 
     if (allNodes.length === 0) {
@@ -296,35 +400,39 @@ export async function generateCanvas(
     let warnings = 0;
     const nodes = allNodes;
     const edges = allEdges;
+    const usesPlugin = nodes.some((n) => n.id.startsWith("plugin/"));
 
     // Core node
-    const hiveNode = nodes.find((n) => n.id === "plugin/HIVE-MIND");
-    if (hiveNode) {
-        canvasNodes.push({
-            id: "hive",
-            label: "HIVE MIND",
-            short: "H",
-            kind: "core",
-            group: "core",
-            path: hiveNode.path,
-            description: "Shared graph memory and routing hub",
-        });
-        nodeIds.add("hive");
-    }
+    const hiveNode = nodes.find((n) => n.id === "README") ?? nodes.find((n) => n.id === "plugin/HIVE-MIND");
+    canvasNodes.push({
+        id: "hive",
+        label: hiveNode?.id === "plugin/HIVE-MIND" ? "HIVE MIND" : "Vault",
+        short: "H",
+        kind: "core",
+        group: "core",
+        path: hiveNode?.path ?? "",
+        description:
+            hiveNode?.id === "plugin/HIVE-MIND"
+                ? "Shared graph memory and routing hub"
+                : "Shared vault memory and routing hub",
+    });
+    nodeIds.add("hive");
 
     // Agent nodes
-    for (const [agentKey, info] of Object.entries(AGENT_MAP)) {
-        const agentId = `agent:${agentKey.replace("prime-", "")}`;
-        canvasNodes.push({
-            id: agentId,
-            label: info.label,
-            short: info.short,
-            kind: "agent",
-            group: "prime",
-            path: info.path,
-            description: info.description,
-        });
-        nodeIds.add(agentId);
+    if (usesPlugin) {
+        for (const [agentKey, info] of Object.entries(AGENT_MAP)) {
+            const agentId = `agent:${agentKey.replace("prime-", "")}`;
+            canvasNodes.push({
+                id: agentId,
+                label: info.label,
+                short: info.short,
+                kind: "agent",
+                group: "prime",
+                path: info.path,
+                description: info.description,
+            });
+            nodeIds.add(agentId);
+        }
     }
 
     // Classify all plugin notes
@@ -333,9 +441,14 @@ export async function generateCanvas(
         if (!classification) continue;
 
         const { kind, group, skillName } = classification;
-        if (kind === "reference" && !includeReferences) continue;
+        if (kind === "reference" && !includeReferences && node.id.startsWith("plugin/")) continue;
 
-        const nodeId = kind === "domain" ? `domain:${group}` : `${kind}:${skillName}`;
+        const nodeId =
+            kind === "core"
+                ? "hive"
+                : kind === "domain"
+                  ? `domain:${group}`
+                  : `${kind}:${skillName}`.replace(/[^a-z0-9-:]/gi, "-").toLowerCase();
         if (nodeIds.has(nodeId)) continue;
         nodeIds.add(nodeId);
 
@@ -357,10 +470,13 @@ export async function generateCanvas(
     }
 
     // Concept nodes: unresolved edge targets
+    const agentFileStubs = new Set(Object.keys(AGENT_FILE_MAP));
     for (const edge of edges) {
         const target = edge.to;
         const matchesNode = nodes.some((n) => n.id === target || n.id.startsWith(target));
-        if (!matchesNode && target && !target.startsWith(".") && !target.startsWith("http")) {
+        // Skip targets that resolve to agent files
+        const isAgentRef = [...agentFileStubs].some((stub) => target.includes(stub));
+        if (!matchesNode && !isAgentRef && target && !target.startsWith(".") && !target.startsWith("http")) {
             const conceptId = `concept:${target.split("/").pop() ?? target}`;
             if (!nodeIds.has(conceptId)) {
                 nodeIds.add(conceptId);
@@ -379,35 +495,67 @@ export async function generateCanvas(
     }
 
     // 3. Build groups
-    const groups: { id: string; label: string; color: string }[] = [
-        { id: "core", label: "Collective memory", color: "#a78bfa" },
-        { id: "prime", label: "P.R.I.M.E. lifecycle", color: "#c084fc" },
-    ];
-    let colorIndex = 0;
-    for (const dir of [...skillDirectories].sort()) {
-        groups.push({ id: dir, label: titleCase(dir), color: colorForIndex(colorIndex++) });
-    }
-    groups.push({ id: "knowledge", label: "Knowledge", color: "#22d3ee" });
-    groups.push({ id: "concept", label: "Concepts & aliases", color: "#94a3b8" });
+    const groupLabels: Record<string, string> = {
+        core: "Collective memory",
+        prime: "P.R.I.M.E. lifecycle",
+        knowledge: "Knowledge",
+        solutions: "Solutions",
+        projects: "Projects",
+        concept: "Concepts & aliases",
+    };
+    const usedGroups = [...new Set(canvasNodes.map((node) => node.group))];
+    if (!usedGroups.includes("concept")) usedGroups.push("concept");
+    const groups: { id: string; label: string; color: string }[] = usedGroups.sort().map((group, index) => ({
+        id: group,
+        label: groupLabels[group] ?? titleCase(group.replace(/^notes-/, "").replace(/^memories-/, "")),
+        color: group === "core" ? "#a78bfa" : group === "concept" ? "#64748b" : colorForIndex(index),
+    }));
 
     // 4. Build links
     const canvasLinks: CanvasLink[] = [];
 
-    // Hub → agents
-    for (const agentKey of Object.keys(AGENT_MAP)) {
-        canvasLinks.push({ source: "hive", target: `agent:${agentKey.replace("prime-", "")}`, type: "knowledge" });
-    }
+    if (usesPlugin) {
+        // Hub → agents
+        for (const agentKey of Object.keys(AGENT_MAP)) {
+            canvasLinks.push({ source: "hive", target: `agent:${agentKey.replace("prime-", "")}`, type: "knowledge" });
+        }
 
-    // Agent lifecycle chain
-    const agentOrder = ["problem", "requirement", "instruct", "make", "evaluate"];
-    for (let i = 0; i < agentOrder.length - 1; i++) {
-        canvasLinks.push({ source: `agent:${agentOrder[i]}`, target: `agent:${agentOrder[i + 1]}`, type: "lifecycle" });
+        // Agent lifecycle chain
+        const agentOrder = ["problem", "requirement", "instruct", "make", "evaluate"];
+        for (let i = 0; i < agentOrder.length - 1; i++) {
+            canvasLinks.push({
+                source: `agent:${agentOrder[i]}`,
+                target: `agent:${agentOrder[i + 1]}`,
+                type: "lifecycle",
+            });
+        }
+        canvasLinks.push({ source: "agent:evaluate", target: "agent:problem", type: "feedback" });
     }
-    canvasLinks.push({ source: "agent:evaluate", target: "agent:problem", type: "feedback" });
 
     // Hub → domains
-    for (const dir of [...skillDirectories].sort()) {
-        canvasLinks.push({ source: "hive", target: `domain:${dir}`, type: "knowledge" });
+    for (const group of usedGroups) {
+        if (group === "core" || group === "concept") continue;
+        const domainId = `domain:${group}`;
+        if (!nodeIds.has(domainId)) {
+            const label = groupLabels[group] ?? titleCase(group.replace(/^notes-/, "").replace(/^memories-/, ""));
+            canvasNodes.push({
+                id: domainId,
+                label,
+                short: shortName(label),
+                kind: "domain",
+                group,
+                path: "",
+                description: `Hub for ${label}`,
+            });
+            nodeIds.add(domainId);
+        }
+        canvasLinks.push({ source: "hive", target: domainId, type: "knowledge" });
+    }
+
+    for (const node of canvasNodes) {
+        if (node.kind === "core" || node.kind === "domain" || node.kind === "concept") continue;
+        const domainId = `domain:${node.group}`;
+        if (nodeIds.has(domainId)) canvasLinks.push({ source: domainId, target: node.id, type: "member" });
     }
 
     // Edge-based links
@@ -460,6 +608,29 @@ export async function generateCanvas(
                     ? `domain:${sourceClass.group}`
                     : `${sourceClass.kind}:${sourceClass.skillName}`;
             canvasLinks.push({ source: sourceId, target: `concept:${targetClass.skillName}`, type: "bridge" });
+        } else if (targetClass.kind === "agent") {
+            // Link to agent node (e.g., from HIVE-MIND or other notes referencing agent files)
+            const sourceId =
+                sourceClass.kind === "domain"
+                    ? `domain:${sourceClass.group}`
+                    : `${sourceClass.kind}:${sourceClass.skillName}`;
+            const agentId = `agent:${targetClass.skillName.replace("prime-", "")}`;
+            if (nodeIds.has(agentId)) {
+                canvasLinks.push({ source: sourceId, target: agentId, type: "bridge" });
+            }
+        } else {
+            // Generic bridge: any other cross-kind edge
+            const sourceId =
+                sourceClass.kind === "domain"
+                    ? `domain:${sourceClass.group}`
+                    : `${sourceClass.kind}:${sourceClass.skillName}`;
+            const targetId =
+                targetClass.kind === "domain"
+                    ? `domain:${targetClass.group}`
+                    : `${targetClass.kind}:${targetClass.skillName}`;
+            if (sourceId !== targetId && nodeIds.has(targetId)) {
+                canvasLinks.push({ source: sourceId, target: targetId, type: "bridge" });
+            }
         }
     }
 
@@ -474,9 +645,9 @@ export async function generateCanvas(
 
     // 5. Assemble
     const canvasData: CanvasData = {
-        title: "Plugin Hive Mind",
-        subtitle: "An interactive map of the plugin knowledge graph",
-        schemaVersion: 2,
+        title: "Vault Knowledge Graph",
+        subtitle: "An interactive map of the vault knowledge graph",
+        schemaVersion: 3,
         groups,
         nodes: canvasNodes,
         links: uniqueLinks,

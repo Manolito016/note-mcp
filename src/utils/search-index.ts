@@ -55,6 +55,8 @@ class SearchIndex {
     private documents = new Map<string, IndexedDocument>();
     /** Inverted index: token → set of doc paths */
     private inverted = new Map<string, Set<string>>();
+    /** Fingerprint cache for incremental sync (path → mtime:size) */
+    private fingerprints = new Map<string, string>();
     private dirty = true;
     private totalDocs = 0;
     private avgDocLength = 0;
@@ -126,16 +128,39 @@ class SearchIndex {
         return best && bestDist <= tol ? best : undefined;
     }
 
+    /**
+     * Return the inverted index for external candidate filtering.
+     * Maps each indexed token to the set of document paths containing it.
+     */
+    getInvertedIndex(): Map<string, Set<string>> {
+        return this.inverted;
+    }
+
     // ── Index Building ───────────────────────────────────────────────
 
     private async build(): Promise<void> {
+        await this.synchronize();
+    }
+
+    /**
+     * Incremental sync: only re-reads files whose fingerprint (mtime:size) changed.
+     * Removes entries for deleted files and indexes new or modified files.
+     */
+    private async synchronize(): Promise<void> {
         const root = getVaultRoot();
-        this.documents.clear();
-        this.inverted.clear();
+        const seen = new Set<string>();
 
-        await this.indexDir(root, root);
+        await this.scanDir(root, root, seen);
 
-        // Compute BM25 globals
+        // Remove entries for deleted files
+        for (const path of [...this.documents.keys()]) {
+            if (!seen.has(path)) this.removeDoc(path);
+        }
+        for (const path of [...this.fingerprints.keys()]) {
+            if (!seen.has(path)) this.fingerprints.delete(path);
+        }
+
+        // Recompute BM25 globals from current state
         this.totalDocs = this.documents.size;
         let totalTokens = 0;
         for (const doc of this.documents.values()) totalTokens += doc.tokenCount;
@@ -147,7 +172,16 @@ class SearchIndex {
         this.dirty = false;
     }
 
-    private async indexDir(root: string, dir: string): Promise<void> {
+    /** Remove a document from the index and clean up its inverted entries. */
+    private removeDoc(path: string): void {
+        this.documents.delete(path);
+        for (const [, set] of this.inverted) {
+            set.delete(path);
+            if (set.size === 0) this.inverted.delete(path);
+        }
+    }
+
+    private async scanDir(root: string, dir: string, seen: Set<string>): Promise<void> {
         let entries;
         try {
             entries = await readdir(dir, { withFileTypes: true });
@@ -165,10 +199,15 @@ class SearchIndex {
                 continue;
             }
             if (entry.isDirectory()) {
-                await this.indexDir(root, fullPath);
+                await this.scanDir(root, fullPath, seen);
             } else if (entry.isFile() && entry.name.endsWith(".md")) {
+                const relPath = relative(root, fullPath).replace(/\\/g, "/");
+                seen.add(relPath);
                 try {
-                    await this.indexFile(root, fullPath);
+                    const s = await stat(fullPath);
+                    const fingerprint = `${s.mtimeMs}:${s.size}`;
+                    if (this.fingerprints.get(relPath) === fingerprint) continue;
+                    await this.indexFile(root, fullPath, fingerprint);
                 } catch {
                     // Skip unreadable
                 }
@@ -176,7 +215,7 @@ class SearchIndex {
         }
     }
 
-    private async indexFile(root: string, fullPath: string): Promise<void> {
+    private async indexFile(root: string, fullPath: string, fingerprint: string): Promise<void> {
         const raw = await readFile(fullPath, "utf-8");
         const relPath = relative(root, fullPath).replace(/\\/g, "/");
         const { frontmatter } = parseFrontmatter(raw);
@@ -206,6 +245,18 @@ class SearchIndex {
             // Ignore
         }
 
+        // Remove old inverted entries if updating an existing doc
+        const existing = this.documents.get(relPath);
+        if (existing) {
+            for (const token of existing.termFreq.keys()) {
+                const set = this.inverted.get(token);
+                if (set) {
+                    set.delete(relPath);
+                    if (set.size === 0) this.inverted.delete(token);
+                }
+            }
+        }
+
         const doc: IndexedDocument = {
             path: relPath,
             filename: relPath.split("/").pop() ?? relPath,
@@ -221,8 +272,9 @@ class SearchIndex {
         };
 
         this.documents.set(relPath, doc);
+        this.fingerprints.set(relPath, fingerprint);
 
-        // Update inverted index
+        // Update inverted index with new tokens
         for (const token of termFreq.keys()) {
             let set = this.inverted.get(token);
             if (!set) {

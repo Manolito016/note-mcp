@@ -24,7 +24,7 @@ describe("generate_hive_canvas handler", () => {
     });
 
     it("should return zero-result message when no notes exist", async () => {
-        // No plugin/ or knowledge/ dirs — scan finds nothing
+        // No requested scan roots exist, so scan finds nothing
         const result = await generateHiveCanvas.handler({
             output_path: "canvases/hive.canvas.json",
             scan_path: "plugin,knowledge",
@@ -59,8 +59,8 @@ describe("generate_hive_canvas handler", () => {
         expect(existsSync(jsonPath)).toBe(true);
         const jsonContent = await readFile(jsonPath, "utf-8");
         const parsed = JSON.parse(jsonContent);
-        expect(parsed.title).toBe("Plugin Hive Mind");
-        expect(parsed.schemaVersion).toBe(2);
+        expect(parsed.title).toBe("Vault Knowledge Graph");
+        expect(parsed.schemaVersion).toBe(3);
         expect(parsed.nodes).toBeDefined();
         expect(parsed.links).toBeDefined();
         expect(parsed.stats).toBeDefined();
@@ -182,7 +182,32 @@ describe("generate_hive_canvas handler", () => {
         expect(result.isError).toBeFalsy();
         const jsonContent = await readFile(join(TEST_VAULT, "canvases", "knowledge.json"), "utf-8");
         const parsed = JSON.parse(jsonContent);
-        // Should have at least the agent nodes + knowledge reference
+        // Should have at least the knowledge reference and its group hub.
         expect(parsed.nodes.length).toBeGreaterThan(0);
+    });
+
+    it("should scan generic vault roots by default", async () => {
+        await writeFile(join(TEST_VAULT, "README.md"), "# Vault\nRoot index.");
+        await mkdir(join(TEST_VAULT, "solutions"), { recursive: true });
+        await mkdir(join(TEST_VAULT, "projects"), { recursive: true });
+        await mkdir(join(TEST_VAULT, "memories", "discoveries"), { recursive: true });
+        await writeFile(join(TEST_VAULT, "solutions", "fix.md"), "# Fix\nReusable solution.");
+        await writeFile(join(TEST_VAULT, "projects", "app.md"), "# App\nProject memory.");
+        await writeFile(join(TEST_VAULT, "memories", "discoveries", "thing.md"), "# Thing\nDiscovery.");
+
+        const result = await generateHiveCanvas.handler({
+            output_path: "canvases/default.json",
+            scan_path: "README.md,knowledge,notes,memories,projects,solutions",
+            include_references: false,
+        });
+        expect(result.isError).toBeFalsy();
+
+        const parsed = JSON.parse(await readFile(join(TEST_VAULT, "canvases", "default.json"), "utf-8"));
+        const paths = parsed.nodes.map((node: { path: string }) => node.path);
+        expect(paths).toContain("README.md");
+        expect(paths).toContain("solutions/fix.md");
+        expect(paths).toContain("projects/app.md");
+        expect(paths).toContain("memories/discoveries/thing.md");
+        expect(paths.some((path: string) => path.startsWith("plugin/"))).toBe(false);
     });
 });

@@ -56,6 +56,7 @@ import * as listFolder from "./tools/list-folder.js";
 import * as refreshKnowledgeIndex from "./tools/refresh-knowledge-index.js";
 import { vaultWatcher } from "./utils/watcher.js";
 import { classifyError } from "./utils/errors.js";
+import { checkRateLimit, startRateLimiterCleanup, stopRateLimiterCleanup } from "./utils/rate-limiter.js";
 
 // --- Crash protection (registered before anything else) ---
 process.on("uncaughtException", (err) => {
@@ -77,13 +78,27 @@ type AnyHandler = (...args: any[]) => any;
 
 function safeHandler<H extends AnyHandler>(name: string, handler: H): H {
     const wrapped = async (...args: Parameters<H>) => {
+        // Check rate limit before executing handler
+        const rateLimitError = checkRateLimit(name);
+        if (rateLimitError) {
+            return {
+                content: [{ type: "text" as const, text: rateLimitError }],
+                isError: true,
+            };
+        }
+
         try {
             return await handler(...args);
         } catch (err) {
             const classified = classifyError(err);
             logger.error(`Tool "${name}" failed`, { error: classified.message, code: classified.code });
+            // Return structured error data as JSON for programmatic client handling
+            const errorData = JSON.stringify(classified.data, null, 2);
             return {
-                content: [{ type: "text" as const, text: `Error in ${name}: ${classified.message}` }],
+                content: [
+                    { type: "text" as const, text: `Error in ${name}: ${classified.message}` },
+                    { type: "text" as const, text: `Error details:\n${errorData}` },
+                ],
                 isError: true,
             };
         }
@@ -230,6 +245,9 @@ async function main() {
     await vaultWatcher.initialize();
     vaultWatcher.start();
 
+    // Start rate limiter cleanup interval
+    startRateLimiterCleanup();
+
     // Keepalive: periodic heartbeat to prevent idle pipe timeouts
     const keepaliveInterval = setInterval(() => {
         logger.debug("keepalive heartbeat");
@@ -238,6 +256,7 @@ async function main() {
     process.on("SIGINT", () => {
         clearInterval(keepaliveInterval);
         vaultWatcher.stop();
+        stopRateLimiterCleanup();
         logger.info("Received SIGINT, shutting down gracefully");
         process.exit(0);
     });
@@ -245,6 +264,7 @@ async function main() {
     process.on("SIGTERM", () => {
         clearInterval(keepaliveInterval);
         vaultWatcher.stop();
+        stopRateLimiterCleanup();
         logger.info("Received SIGTERM, shutting down gracefully");
         process.exit(0);
     });

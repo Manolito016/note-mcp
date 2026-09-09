@@ -18,11 +18,15 @@ import { handler as findBacklinksHandler } from "./find-backlinks.js";
 import { handler as vaultStatusHandler } from "./vault-status.js";
 import { handler as batchDeleteHandler } from "./batch-delete.js";
 import { handler as batchMoveHandler } from "./batch-move.js";
+import { cancelHiveRegen } from "./hive-auto-regen.js";
 
-const TEST_VAULT = join(process.cwd(), "test-vault-temp-tools-full");
+let testCounter = 0;
+let TEST_VAULT = "";
 
 describe("Core Tool Tests", () => {
     beforeEach(async () => {
+        cancelHiveRegen();
+        TEST_VAULT = join(process.cwd(), `test-vault-temp-tools-full-${process.pid}-${testCounter++}`);
         // Clean up any stale directory first (Windows file lock resilience)
         try {
             await rm(TEST_VAULT, { recursive: true, force: true });
@@ -55,6 +59,7 @@ describe("Core Tool Tests", () => {
     });
 
     afterEach(async () => {
+        cancelHiveRegen();
         delete process.env.NOTES_VAULT_PATH;
         // Windows file locks can cause rm to hang — use a timeout
         try {
@@ -458,6 +463,25 @@ describe("Core Tool Tests", () => {
                 showTokenEstimate: false,
             });
             expect(result.content[0].text).not.toContain("test.md");
+        });
+
+        it("should preserve path operator semantics with indexed search", async () => {
+            const result = await searchNotesHandler({
+                query: "path:notes",
+                path: ".",
+                fileExtension: ".md",
+                useRegex: false,
+                fuzzy: false,
+                highlight: false,
+                sort: "relevance",
+                snippets: 0,
+                frontmatter_only: false,
+                deduplicate: true,
+                wildcard: false,
+                offset: 0,
+                showTokenEstimate: false,
+            });
+            expect(result.content[0].text).toContain("test.md");
         });
     });
 

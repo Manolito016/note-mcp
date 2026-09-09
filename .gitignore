@@ -8,5 +8,6 @@ coverage/
 test-vault-temp*/
 prime/
 PRD.md
+vault/
 *.tsbuildinfo
 *.log

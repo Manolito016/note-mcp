@@ -105,6 +105,8 @@ function fuzzyFieldMatch(field: string, query: string): boolean {
 class KnowledgeIndex {
     private entries = new Map<string, KnowledgeEntry>();
     private folders = new Set<string>();
+    /** Inverted term index: normalised token → set of entry paths */
+    private termIndex = new Map<string, Set<string>>();
     private root = "";
     private initialized = false;
     private dirty = true;
@@ -116,6 +118,7 @@ class KnowledgeIndex {
     reset(): void {
         this.entries.clear();
         this.folders.clear();
+        this.termIndex.clear();
         this.root = "";
         this.initialized = false;
         this.dirty = true;
@@ -148,8 +151,79 @@ class KnowledgeIndex {
             if (!seen.has(path)) this.entries.delete(path);
         }
         this.folders = folders;
+        this.rebuildTermIndex();
         this.initialized = true;
         this.dirty = false;
+    }
+
+    /** Build the inverted term index from all current entries. */
+    private rebuildTermIndex(): void {
+        this.termIndex.clear();
+        for (const entry of this.entries.values()) {
+            // Index filename tokens
+            const stem = normalized(entry.filename.slice(0, -entry.extension.length || undefined));
+            for (const token of tokenize(stem)) {
+                let set = this.termIndex.get(token);
+                if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                set.add(entry.path);
+            }
+            // Index title tokens
+            if (entry.title) {
+                for (const token of tokenize(entry.title)) {
+                    let set = this.termIndex.get(token);
+                    if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                    set.add(entry.path);
+                }
+            }
+            // Index tag tokens
+            for (const tag of entry.tags) {
+                for (const token of tokenize(tag)) {
+                    let set = this.termIndex.get(token);
+                    if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                    set.add(entry.path);
+                }
+            }
+            // Index alias tokens
+            for (const alias of entry.aliases) {
+                for (const token of tokenize(alias)) {
+                    let set = this.termIndex.get(token);
+                    if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                    set.add(entry.path);
+                }
+            }
+            // Index heading tokens
+            for (const heading of entry.headings) {
+                for (const token of tokenize(heading)) {
+                    let set = this.termIndex.get(token);
+                    if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                    set.add(entry.path);
+                }
+            }
+            // Index content tokens
+            for (const token of entry.contentTokens.keys()) {
+                let set = this.termIndex.get(token);
+                if (!set) { set = new Set(); this.termIndex.set(token, set); }
+                set.add(entry.path);
+            }
+        }
+    }
+
+    /**
+     * Use the term index to find candidate paths that match any of the query tokens.
+     * Returns null if the term index cannot help (caller should scan all entries).
+     */
+    private getCandidatesFromTermIndex(queryTokens: string[]): Set<string> | null {
+        if (queryTokens.length === 0) return null;
+        const candidates = new Set<string>();
+        let found = false;
+        for (const token of queryTokens) {
+            const paths = this.termIndex.get(token);
+            if (paths) {
+                found = true;
+                for (const p of paths) candidates.add(p);
+            }
+        }
+        return found ? candidates : null;
     }
 
     getEntries(folder = "."): KnowledgeEntry[] {
@@ -173,8 +247,14 @@ class KnowledgeIndex {
         const queryTokens = tokenize(query);
         const results: DiscoveryResult[] = [];
 
+        // Use term index to short-circuit when possible
+        const indexedCandidates = this.getCandidatesFromTermIndex(queryTokens);
+
         if (types.includes("file")) {
-            for (const entry of this.getEntries(folder)) {
+            const entriesToSearch = indexedCandidates
+                ? this.getEntries(folder).filter((e) => indexedCandidates.has(e.path))
+                : this.getEntries(folder);
+            for (const entry of entriesToSearch) {
                 const matched = new Set<DiscoveryField>();
                 let score = 0;
                 const file = normalized(entry.filename);

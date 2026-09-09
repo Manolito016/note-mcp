@@ -68,12 +68,16 @@ export function extractCallouts(content: string): Callout[] {
             while (j < lines.length && (lines[j].startsWith(">") || lines[j].trim() === "")) {
                 const contentLine = lines[j];
                 if (contentLine.startsWith(">")) {
+                    // Check if this line is a new callout header
+                    if (/^>\s*\[![^\]]+\][+-]?\s*/.test(contentLine)) {
+                        break; // New callout starts, end current one
+                    }
                     // Remove the > prefix
                     contentLines.push(contentLine.replace(/^>\s?/, ""));
                 } else if (contentLine.trim() === "") {
                     // Blank line might be part of callout or end it
-                    // Check if next line continues the callout
-                    if (j + 1 < lines.length && lines[j + 1].startsWith(">")) {
+                    // Check if next line continues the callout (but not a new callout)
+                    if (j + 1 < lines.length && lines[j + 1].startsWith(">") && !/^>\s*\[![^\]]+\][+-]?\s*/.test(lines[j + 1])) {
                         contentLines.push("");
                     } else {
                         break;
